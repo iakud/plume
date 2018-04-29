@@ -48,7 +48,7 @@ func (this *TCPServer) Start() error {
 
 	done := make(chan struct{})
 	this.done = done
-
+	ln.Accept()
 	go func() {
 		defer ln.Close()
 		defer close(done)
@@ -74,16 +74,17 @@ func (this *TCPServer) Start() error {
 				return
 			}
 			tempDelay = 0
-			conn.Close()
-			//connection := newTcpConnection(conn, this.Handler)
-			//		connection.onClose = func() {
-			//		this.trackConnection(connection, false)
-			//}
-			//this.trackConnection(connection, true)
-			//		go connection.serve(this.Handler)
+			connection := newTCPConnection(conn, this.handler)
+			this.addConnection(connection)
+			go this.newConnection(connection)
 		}
 	}()
 	return nil
+}
+
+func (this *TCPServer) newConnection(connection *TCPConnection) {
+
+	this.removeConnection(connection)
 }
 
 func (this *TCPServer) addConnection(connection *TCPConnection) {
@@ -108,7 +109,7 @@ func (this *TCPServer) Close() error {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	for connection := range this.connections {
-		// connection.conn.Close()
+		connection.Close()
 		delete(this.connections, connection)
 	}
 	return err
