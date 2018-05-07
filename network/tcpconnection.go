@@ -2,6 +2,8 @@ package network
 
 import (
 	"bufio"
+	"encoding/binary"
+	"io"
 	"net"
 	"sync"
 )
@@ -9,12 +11,11 @@ import (
 type TCPConnection struct {
 	conn    *net.TCPConn
 	handler TCPHandler
-	codec   Codec
 
-	mu          sync.Mutex
-	cond        *sync.Cond
-	sendBuffers [][]byte
-	closed      bool
+	mu      sync.Mutex
+	cond    *sync.Cond
+	buffers [][]byte
+	closed  bool
 }
 
 func newTCPConnection(conn *net.TCPConn, handler TCPHandler) *TCPConnection {
@@ -29,65 +30,92 @@ func newTCPConnection(conn *net.TCPConn, handler TCPHandler) *TCPConnection {
 func (this *TCPConnection) serve() {
 	defer this.conn.Close()
 
-	func() {
-		defer this.conn.Close()
-
-		w := bufio.NewWriter(this.conn)
-		var buffers [][]byte
-		for {
-			this.mu.Lock()
-			for len(this.sendBuffers) == 0 {
-				if this.closed {
-					this.mu.Unlock()
-					return
-				}
-				this.cond.Wait()
-			}
-			this.sendBuffers, buffers = buffers, this.sendBuffers // swap
-			this.mu.Unlock()
-
-			for _, b := range buffers {
-				if err := this.codec.Write(w, b); err != nil {
-					this.Close()
-					return
-				}
-			}
-			if err := w.Flush(); err != nil {
-				this.Close()
-				return
-			}
-			buffers = buffers[0:0] // clear buffers
-		}
-	}()
+	done := make(chan struct{})
+	go this.serveSend(done)
 
 	rd := bufio.NewReader(this.conn)
+	h := make([]byte, 2)
 	for {
-		if b, err := this.codec.Read(rd); err == nil {
-			this.handler.Receive(this, b)
-		} else {
-			//
+		if _, err := io.ReadFull(rd, h); err != nil {
 			this.Close()
 			break
+		}
+		n := binary.BigEndian.Uint16(h)
+		b := make([]byte, n)
+		if _, err := io.ReadFull(rd, b); err != nil {
+			this.Close()
+			break
+		}
+		this.handler.Receive(this, b)
+	}
+	<-done // wait done
+}
+
+func (this *TCPConnection) serveSend(done chan struct{}) {
+	defer close(done)
+	defer this.conn.Close()
+
+	w := bufio.NewWriter(this.conn)
+	h := make([]byte, 2)
+	for {
+		var buffers [][]byte
+		this.mu.Lock()
+		for len(this.buffers) == 0 {
+			if this.closed {
+				this.mu.Unlock()
+				return
+			}
+			this.cond.Wait()
+		}
+		this.buffers, buffers = buffers, this.buffers // swap
+		this.mu.Unlock()
+
+		for _, b := range buffers {
+			binary.BigEndian.PutUint16(h, uint16(len(b)))
+			if _, err := w.Write(h); err != nil {
+				this.close()
+				return
+			}
+			if _, err := w.Write(b); err != nil {
+				this.close()
+				return
+			}
+		}
+		if err := w.Flush(); err != nil {
+			this.close()
+			return
 		}
 	}
 }
 
 func (this *TCPConnection) Send(b []byte) {
 	this.mu.Lock()
-	defer this.mu.Unlock()
 	if this.closed {
+		this.mu.Unlock()
 		return
 	}
-	this.sendBuffers = append(this.sendBuffers, b)
+	this.buffers = append(this.buffers, b)
+	this.mu.Unlock()
 	this.cond.Signal()
 }
 
-func (this *TCPConnection) Close() {
+func (this *TCPConnection) close() {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	if this.closed {
 		return
 	}
 	this.closed = true
+}
+
+func (this *TCPConnection) Close() {
+	this.mu.Lock()
+	this.mu.Unlock()
+	if this.closed {
+		this.mu.Unlock()
+		return
+	}
+	this.closed = true
+	this.mu.Unlock()
 	this.cond.Signal()
 }
