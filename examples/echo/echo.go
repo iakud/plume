@@ -1,53 +1,82 @@
-package main
+package echo
 
 import (
 	"fmt"
-	"log"
-	"syscall"
 	//	"time"
-	"os"
-	"os/signal"
 
 	"github.com/iakud/falcon/network"
 )
 
 type EchoServer struct {
+	server *network.TCPServer
+}
+
+func NewEchoServer(addr string) *EchoServer {
+	echoServer := &EchoServer{
+		server: network.NewTCPServer(addr),
+	}
+	return echoServer
+}
+
+func (this *EchoServer) Start() error {
+	return this.server.Start(this)
+}
+
+func (this *EchoServer) Close() error {
+	return this.server.Close()
 }
 
 func (this *EchoServer) Connected(connection *network.TCPConnection) {
-	fmt.Println("Connected")
+	fmt.Println("server: connected.")
 }
 
 func (this *EchoServer) Disconnected(connection *network.TCPConnection) {
-	fmt.Println("Disconnected")
+	fmt.Println("server: disconnected.")
 }
 
 func (this *EchoServer) Receive(connection *network.TCPConnection, b []byte) {
-	//connection.Send(b)
-	//connection.Shutdown()
-	//connection.CloseIn(3 * time.Second)
+	fmt.Println("server: receive", string(b))
+	fmt.Println("server: send", string(b))
+	connection.Send(b)
+	connection.Close()
 }
 
-func sin() {
-	c := make(chan os.Signal)
-	signal.Notify(c)
-	for s := range c {
-		fmt.Println("get signal:", s)
-	}
+type EchoClient struct {
+	client *network.TCPClient
+	done   chan struct{}
 }
 
-func main() {
-	go sin()
-	server := network.NewTCPServer("127.0.0.1:8000", &EchoServer{})
-	if err := server.Start(); err != nil {
-		log.Fatalln(err)
+func NewEchoClient(addr string) *EchoClient {
+	echoClient := &EchoClient{
+		client: network.NewTCPClient(addr),
+		done:   make(chan struct{}),
 	}
-	server.Close()
-	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGINT)
-	select {
-	case s := <-c:
-		fmt.Println("get signal:", s)
-	}
+	return echoClient
+}
 
+func (this *EchoClient) Start() error {
+	return this.client.Start(this)
+}
+
+func (this *EchoClient) Done() <-chan struct{} {
+	return this.done
+}
+
+func (this *EchoClient) Connected(connection *network.TCPConnection) {
+	fmt.Println("client: connected.")
+	message := "hello"
+	fmt.Println("client: send", message)
+	connection.Send([]byte(message))
+
+}
+
+func (this *EchoClient) Disconnected(connection *network.TCPConnection) {
+	fmt.Println("client: disconnected.")
+	this.client.Close()
+	close(this.done)
+}
+
+func (this *EchoClient) Receive(connection *network.TCPConnection, b []byte) {
+	fmt.Println("client: receive ", string(b))
+	connection.Close()
 }
