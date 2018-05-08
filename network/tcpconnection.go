@@ -23,6 +23,7 @@ func newTCPConnection(conn *net.TCPConn, handler TCPHandler) *TCPConnection {
 		conn:    conn,
 		handler: handler,
 	}
+	conn.SetNoDelay(true) // no delay
 	connection.cond = sync.NewCond(&connection.mu)
 	return connection
 }
@@ -32,6 +33,8 @@ func (this *TCPConnection) serve() {
 
 	done := make(chan struct{})
 	go this.serveSend(done)
+
+	this.handler.Connected(this)
 
 	rd := bufio.NewReader(this.conn)
 	h := make([]byte, 2)
@@ -49,6 +52,8 @@ func (this *TCPConnection) serve() {
 		this.handler.Receive(this, b)
 	}
 	<-done // wait done
+
+	this.handler.Disconnected(this)
 }
 
 func (this *TCPConnection) serveSend(done chan struct{}) {
@@ -59,16 +64,9 @@ func (this *TCPConnection) serveSend(done chan struct{}) {
 	h := make([]byte, 2)
 	for {
 		var buffers [][]byte
-		this.mu.Lock()
-		for len(this.buffers) == 0 {
-			if this.closed {
-				this.mu.Unlock()
-				return
-			}
-			this.cond.Wait()
+		if this.wait(&buffers); len(buffers) == 0 {
+			return
 		}
-		this.buffers, buffers = buffers, this.buffers // swap
-		this.mu.Unlock()
 
 		for _, b := range buffers {
 			binary.BigEndian.PutUint16(h, uint16(len(b)))
@@ -86,6 +84,18 @@ func (this *TCPConnection) serveSend(done chan struct{}) {
 			return
 		}
 	}
+}
+
+func (this *TCPConnection) wait(buffers *[][]byte) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	for len(this.buffers) == 0 {
+		if this.closed {
+			return
+		}
+		this.cond.Wait()
+	}
+	this.buffers, *buffers = *buffers, this.buffers // swap
 }
 
 func (this *TCPConnection) Send(b []byte) {
@@ -110,7 +120,6 @@ func (this *TCPConnection) close() {
 
 func (this *TCPConnection) Close() {
 	this.mu.Lock()
-	this.mu.Unlock()
 	if this.closed {
 		this.mu.Unlock()
 		return
