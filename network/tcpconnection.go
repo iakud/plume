@@ -11,14 +11,14 @@ import (
 type TCPConnection struct {
 	conn *net.TCPConn
 
-	connectFunc    func(*TCPConnection)
-	disconnectFunc func(*TCPConnection)
-	receiveFunc    func(*TCPConnection, []byte)
-
 	mu      sync.Mutex
 	cond    *sync.Cond
 	buffers [][]byte
 	closed  bool
+
+	connectFunc    func(*TCPConnection)
+	disconnectFunc func(*TCPConnection)
+	receiveFunc    func(*TCPConnection, []byte)
 }
 
 func newTCPConnection(conn *net.TCPConn) *TCPConnection {
@@ -33,25 +33,16 @@ func newTCPConnection(conn *net.TCPConn) *TCPConnection {
 func (this *TCPConnection) serve() {
 	defer this.conn.Close()
 
-	// on connect
-	if this.connectFunc != nil {
-		this.connectFunc(this)
-	}
+	this.onConnect()         // on connect
+	defer this.onDisonnect() // on disconnect
 
 	done := make(chan struct{})
-	wait := func() {
-		<-done
-	}
-	go this.serveWrite(done)
+	go this.serveWrite(done) // write
 
-	this.serveRead()
+	wait := func() { <-done }
+	defer wait() // wait write
 
-	wait() // wait write
-
-	// on disconnect
-	if this.disconnectFunc != nil {
-		this.disconnectFunc(this)
-	}
+	this.serveRead() // read
 }
 
 func (this *TCPConnection) serveRead() {
@@ -69,9 +60,7 @@ func (this *TCPConnection) serveRead() {
 		if _, err := io.ReadFull(rd, b); err != nil {
 			return
 		}
-		if this.receiveFunc != nil {
-			this.receiveFunc(this, b)
-		}
+		this.onReceive(b)
 	}
 }
 
@@ -91,7 +80,8 @@ func (this *TCPConnection) serveWrite(done chan struct{}) {
 			}
 			this.cond.Wait()
 		}
-		this.buffers, buffers = buffers, this.buffers // swap
+		// swap
+		buffers, this.buffers = this.buffers, buffers
 		this.mu.Unlock()
 
 		if err := func() error {
@@ -112,18 +102,6 @@ func (this *TCPConnection) serveWrite(done chan struct{}) {
 	}
 }
 
-func (this *TCPConnection) wait(buffers *[][]byte) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	for len(this.buffers) == 0 {
-		if this.closed {
-			return
-		}
-		this.cond.Wait()
-	}
-	this.buffers, *buffers = *buffers, this.buffers // swap
-}
-
 func (this *TCPConnection) Send(b []byte) {
 	this.mu.Lock()
 	if this.closed {
@@ -131,24 +109,6 @@ func (this *TCPConnection) Send(b []byte) {
 		return
 	}
 	this.buffers = append(this.buffers, b)
-	this.mu.Unlock()
-
-	this.cond.Signal()
-}
-
-func (this *TCPConnection) close() {
-	this.conn.SetLinger(0)
-	this.conn.Close()
-	this.closeWrite()
-}
-
-func (this *TCPConnection) closeWrite() {
-	this.mu.Lock()
-	if this.closed {
-		this.mu.Unlock()
-		return
-	}
-	this.closed = true
 	this.mu.Unlock()
 
 	this.cond.Signal()
@@ -163,6 +123,42 @@ func (this *TCPConnection) closeSend() {
 	this.closed = true
 }
 
+func (this *TCPConnection) closeWrite() {
+	this.mu.Lock()
+	if this.closed {
+		this.mu.Unlock()
+		return
+	}
+	this.closed = true
+	this.mu.Unlock()
+
+	this.cond.Signal()
+}
+
+func (this *TCPConnection) close() {
+	this.conn.SetLinger(0)
+	this.conn.Close()
+	this.closeWrite()
+}
+
 func (this *TCPConnection) Shutdown() {
 	this.closeWrite()
+}
+
+func (this *TCPConnection) onConnect() {
+	if this.connectFunc != nil {
+		this.connectFunc(this)
+	}
+}
+
+func (this *TCPConnection) onDisonnect() {
+	if this.disconnectFunc != nil {
+		this.disconnectFunc(this)
+	}
+}
+
+func (this *TCPConnection) onReceive(b []byte) {
+	if this.receiveFunc != nil {
+		this.receiveFunc(this, b)
+	}
 }
