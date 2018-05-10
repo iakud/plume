@@ -11,13 +11,13 @@ type TCPClient struct {
 	addr  string
 	retry bool
 
-	ConnectFunc    func(*TCPConnection)
-	DisconnectFunc func(*TCPConnection)
-	ReceiveFunc    func(*TCPConnection, []byte)
-
 	mu         sync.Mutex
 	connection *TCPConnection
 	closed     bool
+
+	ConnectFunc    func(*TCPConnection)
+	DisconnectFunc func(*TCPConnection)
+	ReceiveFunc    func(*TCPConnection, []byte)
 }
 
 func NewTCPClient(addr string) *TCPClient {
@@ -69,6 +69,14 @@ func (this *TCPClient) serve() {
 		this.mu.Unlock()
 
 		this.serveConnection(connection)
+
+		this.mu.Lock()
+		if this.closed {
+			this.mu.Unlock()
+			return
+		}
+		this.connection = nil
+		this.mu.Unlock()
 	}
 }
 
@@ -90,15 +98,6 @@ func (this *TCPClient) newConnection(conn *net.TCPConn) *TCPConnection {
 
 func (this *TCPClient) serveConnection(connection *TCPConnection) {
 	connection.serve()
-	this.removeConnection(connection)
-}
-
-func (this *TCPClient) removeConnection(connection *TCPConnection) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	if this.connection == connection {
-		this.connection = nil
-	}
 }
 
 func (this *TCPClient) GetConnection() *TCPConnection {
