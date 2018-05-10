@@ -30,19 +30,21 @@ func (this *EchoServer) Close() error {
 }
 
 func (this *EchoServer) onConnect(connection *network.TCPConnection) {
-	log.Println("server: on connect.")
+	log.Println("server: connected.")
 }
 
 func (this *EchoServer) onDisconnect(connection *network.TCPConnection) {
-	log.Println("server: on disconnect.")
+	log.Println("server: disconnected.")
 }
 
 func (this *EchoServer) onReceive(connection *network.TCPConnection, b []byte) {
-	log.Println("server: on receive", string(b))
-	log.Println("server: send", string(b))
+	message := string(b)
+	log.Println("server: receive", message)
 	connection.Send(b)
 	connection.Shutdown()
 }
+
+var Message string = "hello"
 
 type EchoClient struct {
 	client *network.TCPClient
@@ -65,25 +67,22 @@ func (this *EchoClient) Start() error {
 	return this.client.Start()
 }
 
-func (this *EchoClient) Wait() {
+func (this *EchoClient) Done() {
 	<-this.done
 }
 
 func (this *EchoClient) onConnect(connection *network.TCPConnection) {
-	log.Println("client: on connect.")
-	message := "hello"
-	log.Println("client: send", message)
-	connection.Send([]byte(message))
+	log.Println("client: connected.")
+	log.Println("client: send", Message)
+	connection.Send([]byte(Message))
 }
 
 func (this *EchoClient) onDisconnect(connection *network.TCPConnection) {
-	log.Println("client: on disconnect.")
+	log.Println("client: disconnected.")
 	this.client.Close()
-	log.Println("client: closed.")
 	close(this.done)
 }
 
 func (this *EchoClient) onReceive(connection *network.TCPConnection, b []byte) {
-	log.Println("client: on receive ", string(b))
-	connection.Shutdown()
+	log.Println("client: receive ", string(b))
 }
