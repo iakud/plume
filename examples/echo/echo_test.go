@@ -3,6 +3,8 @@ package echo
 import (
 	"log"
 	"testing"
+	"time"
+	//"time"
 )
 
 func TestEcho(t *testing.T) {
@@ -14,6 +16,11 @@ func TestEcho(t *testing.T) {
 	if err := echoClient.Start(); err != nil {
 		log.Fatalln(err)
 	}
-	<-echoClient.Done()
+	//time.Sleep(time.Second)
+	select {
+	case <-time.After(3 * time.Second):
+	case <-echoClient.done:
+	}
+	//echoClient.Wait()
 	echoServer.Close()
 }

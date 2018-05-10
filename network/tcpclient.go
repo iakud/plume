@@ -8,38 +8,42 @@ import (
 )
 
 type TCPClient struct {
-	addr string
+	addr  string
+	retry bool
 
-	closed     bool
+	ConnectFunc    func(*TCPConnection)
+	DisconnectFunc func(*TCPConnection)
+	ReceiveFunc    func(*TCPConnection, []byte)
+
 	mu         sync.Mutex
 	connection *TCPConnection
-	done       chan struct{}
+	closed     bool
 }
 
 func NewTCPClient(addr string) *TCPClient {
 	client := &TCPClient{
-		addr: addr,
-		done: make(chan struct{}),
+		addr:  addr,
+		retry: true,
 	}
 	return client
 }
 
-func (this *TCPClient) Start(handler TCPHandler) error {
-	go this.serve(handler)
+func (this *TCPClient) Start() error {
+	go this.serve()
 	return nil
 }
 
-func (this *TCPClient) serve(handler TCPHandler) {
-	var tempDelay time.Duration // how long to sleep on accept failure
+func (this *TCPClient) serve() {
+	var tempDelay time.Duration // how long to sleep on connect failure
 	for {
-		if this.closed {
-			return
-		}
-		conn, err := this.dial()
+		conn, err := this.connect()
 		if err != nil {
+			this.mu.Lock()
 			if this.closed {
+				this.mu.Unlock()
 				return
 			}
+			this.mu.Unlock()
 			if tempDelay == 0 {
 				tempDelay = 1 * time.Second
 			} else {
@@ -53,40 +57,48 @@ func (this *TCPClient) serve(handler TCPHandler) {
 			continue
 		}
 		tempDelay = 0
-		connection := newTCPConnection(conn, handler)
+		connection := this.newConnection(conn)
 
 		this.mu.Lock()
 		if this.closed {
 			this.mu.Unlock()
-			conn.Close()
+			connection.close()
 			return
 		}
 		this.connection = connection
 		this.mu.Unlock()
-		// this.setConnection(connection)
 
 		this.serveConnection(connection)
 	}
 }
 
-func (this *TCPClient) dial() (*net.TCPConn, error) {
+func (this *TCPClient) connect() (*net.TCPConn, error) {
 	raddr, err := net.ResolveTCPAddr("tcp", this.addr)
 	if err != nil {
 		return nil, err
 	}
 	return net.DialTCP("tcp", nil, raddr)
+}
 
+func (this *TCPClient) newConnection(conn *net.TCPConn) *TCPConnection {
+	connection := newTCPConnection(conn)
+	connection.connectFunc = this.ConnectFunc
+	connection.disconnectFunc = this.DisconnectFunc
+	connection.receiveFunc = this.ReceiveFunc
+	return connection
 }
 
 func (this *TCPClient) serveConnection(connection *TCPConnection) {
 	connection.serve()
-	this.setConnection(nil)
+	this.removeConnection(connection)
 }
 
-func (this *TCPClient) setConnection(connection *TCPConnection) {
+func (this *TCPClient) removeConnection(connection *TCPConnection) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
-	this.connection = connection
+	if this.connection == connection {
+		this.connection = nil
+	}
 }
 
 func (this *TCPClient) GetConnection() *TCPConnection {
@@ -95,18 +107,19 @@ func (this *TCPClient) GetConnection() *TCPConnection {
 	return this.connection
 }
 
-func (this *TCPClient) closeConnection() {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	if this.connection != nil {
-		this.connection.Close()
-		this.connection = nil
-	}
-}
-
 func (this *TCPClient) Close() error {
+	this.mu.Lock()
+	if this.closed {
+		this.mu.Unlock()
+		return nil
+	}
 	this.closed = true
-	this.closeConnection()
-	<-this.done
+	if connection := this.connection; connection != nil {
+		this.connection = nil
+		this.mu.Unlock()
+		connection.close()
+		return nil
+	}
+	this.mu.Unlock()
 	return nil
 }

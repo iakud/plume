@@ -10,6 +10,10 @@ import (
 type TCPServer struct {
 	addr string
 
+	ConnectFunc    func(*TCPConnection)
+	DisconnectFunc func(*TCPConnection)
+	ReceiveFunc    func(*TCPConnection, []byte)
+
 	mu          sync.Mutex
 	connections map[*TCPConnection]struct{}
 	listener    *net.TCPListener
@@ -24,29 +28,33 @@ func NewTCPServer(addr string) *TCPServer {
 	return server
 }
 
-func (this *TCPServer) Start(handler TCPHandler) error {
+func (this *TCPServer) Start() error {
 	if this.listener != nil {
 		return nil
 	}
-	addr := this.addr
-	if addr == "" {
-		addr = ":0"
-	}
-	la, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		return err
-	}
-	ln, err := net.ListenTCP("tcp", la)
+	ln, err := this.listen()
 	if err != nil {
 		return err
 	}
 	this.listener = ln
 	this.done = make(chan struct{})
-	go this.serve(handler)
+	go this.serve()
 	return nil
 }
 
-func (this *TCPServer) serve(handler TCPHandler) {
+func (this *TCPServer) listen() (*net.TCPListener, error) {
+	addr := this.addr
+	if addr == "" {
+		addr = ":0"
+	}
+	laddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	return net.ListenTCP("tcp", laddr)
+}
+
+func (this *TCPServer) serve() {
 	defer close(this.done)
 	defer this.listener.Close()
 
@@ -71,10 +79,18 @@ func (this *TCPServer) serve(handler TCPHandler) {
 			return
 		}
 		tempDelay = 0
-		connection := newTCPConnection(conn, handler)
+		connection := this.newConnection(conn)
 		this.addConnection(connection)
 		go this.serveConnection(connection)
 	}
+}
+
+func (this *TCPServer) newConnection(conn *net.TCPConn) *TCPConnection {
+	connection := newTCPConnection(conn)
+	connection.connectFunc = this.ConnectFunc
+	connection.disconnectFunc = this.DisconnectFunc
+	connection.receiveFunc = this.ReceiveFunc
+	return connection
 }
 
 func (this *TCPServer) serveConnection(connection *TCPConnection) {
@@ -98,7 +114,7 @@ func (this *TCPServer) closeConnections() {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	for connection := range this.connections {
-		connection.Close()
+		connection.close()
 		delete(this.connections, connection)
 	}
 }
