@@ -6,11 +6,11 @@ import (
 )
 
 func TestEcho(t *testing.T) {
-	echoServer := NewEchoServer("127.0.0.1:9000")
+	echoServer := NewEchoServer("localhost:8000")
 	if err := echoServer.Start(); err != nil {
 		log.Fatalln(err)
 	}
-	echoClient := NewEchoClient("127.0.0.1:9000")
+	echoClient := NewEchoClient("localhost:8000")
 	if err := echoClient.Start(); err != nil {
 		log.Fatalln(err)
 	}
