@@ -15,28 +15,38 @@ type TCPServer struct {
 	ReceiveFunc    func(*TCPConnection, []byte)
 
 	mu          sync.Mutex
-	connections map[*TCPConnection]struct{}
 	listener    *net.TCPListener
+	connections map[*TCPConnection]struct{}
+	started     bool
 	closed      bool
 }
 
 func NewTCPServer(addr string) *TCPServer {
 	server := &TCPServer{
-		addr:        addr,
-		connections: make(map[*TCPConnection]struct{}),
+		addr: addr,
 	}
 	return server
 }
 
 func (this *TCPServer) Start() error {
-	if this.listener != nil {
+	this.mu.Lock()
+	if this.started {
+		this.mu.Unlock()
 		return nil
 	}
+	this.started = true
+	if this.closed {
+		this.mu.Unlock()
+		return nil
+	}
+	this.mu.Unlock()
+
 	ln, err := this.listen()
 	if err != nil {
 		return err
 	}
 	this.listener = ln
+	this.connections = make(map[*TCPConnection]struct{})
 	go this.serve()
 	return nil
 }
@@ -111,19 +121,18 @@ func (this *TCPServer) serveConnection(connection *TCPConnection) {
 }
 
 func (this *TCPServer) Close() error {
-	if this.listener != nil {
-		return nil
-	}
-
 	this.mu.Lock()
 	if this.closed {
 		this.mu.Unlock()
 		return nil
 	}
 	this.closed = true
+	this.mu.Unlock()
+
 	var err error
 	if this.listener != nil {
 		err = this.listener.Close()
+		return nil
 	}
 	for connection := range this.connections {
 		connection.close()

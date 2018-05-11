@@ -13,6 +13,7 @@ type TCPClient struct {
 
 	mu         sync.Mutex
 	connection *TCPConnection
+	started    bool
 	closed     bool
 
 	ConnectFunc    func(*TCPConnection)
@@ -29,6 +30,18 @@ func NewTCPClient(addr string) *TCPClient {
 }
 
 func (this *TCPClient) Start() error {
+	this.mu.Lock()
+	if this.started {
+		this.mu.Unlock()
+		return nil
+	}
+	this.started = true
+	if this.closed {
+		this.mu.Unlock()
+		return nil
+	}
+	this.mu.Unlock()
+
 	go this.serve()
 	return nil
 }
@@ -101,6 +114,9 @@ func (this *TCPClient) serveConnection(connection *TCPConnection) {
 func (this *TCPClient) GetConnection() *TCPConnection {
 	this.mu.Lock()
 	defer this.mu.Unlock()
+	if this.closed {
+		return nil
+	}
 	return this.connection
 }
 
@@ -111,12 +127,11 @@ func (this *TCPClient) Close() error {
 		return nil
 	}
 	this.closed = true
-	if connection := this.connection; connection != nil {
-		this.connection = nil
-		this.mu.Unlock()
-		connection.close()
-		return nil
-	}
 	this.mu.Unlock()
+
+	if this.connection != nil {
+		this.connection.close()
+		this.connection = nil
+	}
 	return nil
 }
