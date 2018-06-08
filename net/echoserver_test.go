@@ -1,24 +1,21 @@
-package echo
+package net
 
 import (
 	"log"
+	"testing"
 
 	"github.com/iakud/falcon/codec"
-	"github.com/iakud/falcon/net"
 )
 
 type EchoServer struct {
-	server *net.TCPServer
+	server *TCPServer
 }
 
 func NewEchoServer(addr string) *EchoServer {
-	server := net.NewTCPServer(addr)
+	server := NewTCPServer(addr)
 	echoServer := &EchoServer{
 		server: server,
 	}
-	server.ConnectFunc = echoServer.onConnect
-	server.DisconnectFunc = echoServer.onDisconnect
-	server.ReceiveFunc = echoServer.onReceive
 	return echoServer
 }
 
@@ -30,19 +27,19 @@ func (this *EchoServer) Close() {
 	this.server.Close()
 }
 
-func (this *EchoServer) newConnection(connection *net.TCPConnection) {
-	connection.ServeCodec(&codec.StdCodec{})
+func (this *EchoServer) newConnection(connection *TCPConnection) {
+	connection.ServeCodec(&codec.StdCodec{}, this.onConnect, this.onDisconnect, this.onReceive)
 }
 
-func (this *EchoServer) onConnect(connection *net.TCPConnection) {
+func (this *EchoServer) onConnect(connection *TCPConnection) {
 	log.Println("server: connected.")
 }
 
-func (this *EchoServer) onDisconnect(connection *net.TCPConnection) {
+func (this *EchoServer) onDisconnect(connection *TCPConnection) {
 	log.Println("server: disconnected.")
 }
 
-func (this *EchoServer) onReceive(connection *net.TCPConnection, b []byte) {
+func (this *EchoServer) onReceive(connection *TCPConnection, b []byte) {
 	message := string(b)
 	log.Println("server: receive", message)
 	connection.Send(b)
@@ -52,19 +49,16 @@ func (this *EchoServer) onReceive(connection *net.TCPConnection, b []byte) {
 var Message string = "hello"
 
 type EchoClient struct {
-	client *net.TCPClient
+	client *TCPClient
 	done   chan struct{}
 }
 
 func NewEchoClient(addr string) *EchoClient {
-	client := net.NewTCPClient(addr)
+	client := NewTCPClient(addr)
 	echoClient := &EchoClient{
 		client: client,
 		done:   make(chan struct{}),
 	}
-	client.ConnectFunc = echoClient.onConnect
-	client.DisconnectFunc = echoClient.onDisconnect
-	client.ReceiveFunc = echoClient.onReceive
 	return echoClient
 }
 
@@ -76,22 +70,33 @@ func (this *EchoClient) Done() {
 	<-this.done
 }
 
-func (this *EchoClient) newConnection(connection *net.TCPConnection) {
-	connection.ServeCodec(&codec.StdCodec{})
+func (this *EchoClient) newConnection(connection *TCPConnection) {
+	connection.ServeCodec(&codec.StdCodec{}, this.onConnect, this.onDisconnect, this.onReceive)
 }
 
-func (this *EchoClient) onConnect(connection *net.TCPConnection) {
+func (this *EchoClient) onConnect(connection *TCPConnection) {
 	log.Println("client: connected.")
 	log.Println("client: send", Message)
 	connection.Send([]byte(Message))
 }
 
-func (this *EchoClient) onDisconnect(connection *net.TCPConnection) {
+func (this *EchoClient) onDisconnect(connection *TCPConnection) {
 	log.Println("client: disconnected.")
 	this.client.Close()
 	close(this.done)
 }
 
-func (this *EchoClient) onReceive(connection *net.TCPConnection, b []byte) {
+func (this *EchoClient) onReceive(connection *TCPConnection, b []byte) {
 	log.Println("client: receive ", string(b))
+}
+
+func TestEcho(t *testing.T) {
+	echoServer := NewEchoServer("localhost:8000")
+	echoServer.Start()
+
+	echoClient := NewEchoClient("localhost:8000")
+	echoClient.Start()
+
+	echoClient.Done()
+	echoServer.Close()
 }
