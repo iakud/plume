@@ -10,10 +10,6 @@ import (
 type TCPServer struct {
 	addr string
 
-	ConnectFunc    func(*TCPConnection)
-	DisconnectFunc func(*TCPConnection)
-	ReceiveFunc    func(*TCPConnection, []byte)
-
 	mutex       sync.Mutex
 	listener    *net.TCPListener
 	connections map[*TCPConnection]struct{}
@@ -96,10 +92,6 @@ func (this *TCPServer) serve(ln *net.TCPListener, connectionFunc func(*TCPConnec
 			connection.close()
 			return
 		}
-		// init connection
-		connection.connectFunc = this.ConnectFunc
-		connection.disconnectFunc = this.DisconnectFunc
-		connection.receiveFunc = this.ReceiveFunc
 
 		go this.serveConnection(connection, connectionFunc)
 	}

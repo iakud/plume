@@ -14,10 +14,6 @@ type TCPClient struct {
 	connection *TCPConnection
 	started    bool
 	closed     bool
-
-	ConnectFunc    func(*TCPConnection)
-	DisconnectFunc func(*TCPConnection)
-	ReceiveFunc    func(*TCPConnection, []byte)
 }
 
 func NewTCPClient(addr string) *TCPClient {
@@ -76,10 +72,6 @@ func (this *TCPClient) connect(connectionFunc func(*TCPConnection)) {
 			connection.close()
 			return
 		}
-		// init connection
-		connection.connectFunc = this.ConnectFunc
-		connection.disconnectFunc = this.DisconnectFunc
-		connection.receiveFunc = this.ReceiveFunc
 
 		go this.serveConnection(connection, connectionFunc)
 		return

@@ -11,10 +11,6 @@ import (
 type TCPConnection struct {
 	conn *net.TCPConn
 
-	connectFunc    func(*TCPConnection)
-	disconnectFunc func(*TCPConnection)
-	receiveFunc    func(*TCPConnection, []byte)
-
 	bufs   [][]byte
 	mutex  sync.Mutex
 	cond   *sync.Cond
@@ -30,20 +26,21 @@ func newTCPConnection(conn *net.TCPConn) *TCPConnection {
 	return connection
 }
 
-func (this *TCPConnection) ServeCodec(codec codec.Codec) {
-	// start write
-	this.startBackgroundWrite(codec)
+func (this *TCPConnection) ServeCodec(codec codec.Codec, connectFunc, disconnectFunc func(*TCPConnection), receiveFunc func(*TCPConnection, []byte)) {
+	this.startBackgroundWrite(codec) // start write
+	defer this.stopBackgroundWrite() // stop write
 
-	this.onConnect()         // connected
-	defer this.onDisonnect() // disconnected
-
-	// loop read
-	this.loopRead(codec)
+	if connectFunc != nil {
+		connectFunc(this)
+	}
+	this.loopRead(codec, receiveFunc) // loop read
+	if disconnectFunc != nil {
+		disconnectFunc(this)
+	}
 }
 
-func (this *TCPConnection) loopRead(codec codec.Codec) {
+func (this *TCPConnection) loopRead(codec codec.Codec, receiveFunc func(*TCPConnection, []byte)) {
 	defer this.conn.Close()
-	defer this.stopBackgroundWrite()
 
 	rd := bufio.NewReader(this.conn)
 	for {
@@ -51,7 +48,9 @@ func (this *TCPConnection) loopRead(codec codec.Codec) {
 		if err != nil {
 			return
 		}
-		this.onReceive(b)
+		if receiveFunc != nil {
+			receiveFunc(this, b)
+		}
 	}
 }
 
@@ -63,8 +62,9 @@ func (this *TCPConnection) backgroundWrite(codec codec.Codec) {
 	defer this.conn.Close()
 
 	w := bufio.NewWriter(this.conn)
-	for closed := false; !closed; {
+	for {
 		var bufs [][]byte
+		var closed bool
 		// wait bufs
 		this.mutex.Lock()
 		for !this.closed && len(this.bufs) == 0 {
@@ -82,6 +82,9 @@ func (this *TCPConnection) backgroundWrite(codec codec.Codec) {
 		}
 		if err := w.Flush(); err != nil {
 			this.stopBackgroundWrite()
+			return
+		}
+		if closed {
 			return
 		}
 	}
@@ -119,22 +122,4 @@ func (this *TCPConnection) close() {
 
 func (this *TCPConnection) Shutdown() {
 	this.stopBackgroundWrite() // stop write
-}
-
-func (this *TCPConnection) onConnect() {
-	if this.connectFunc != nil {
-		this.connectFunc(this)
-	}
-}
-
-func (this *TCPConnection) onDisonnect() {
-	if this.disconnectFunc != nil {
-		this.disconnectFunc(this)
-	}
-}
-
-func (this *TCPConnection) onReceive(b []byte) {
-	if this.receiveFunc != nil {
-		this.receiveFunc(this, b)
-	}
 }
