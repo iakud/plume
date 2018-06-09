@@ -5,10 +5,17 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/iakud/falcon"
 )
 
 type TCPClient struct {
+	loop *falcon.EventLoop
 	addr string
+
+	ConnectFunc    func(*TCPConnection)
+	DisconnectFunc func(*TCPConnection)
+	ReceiveFunc    func(*TCPConnection, []byte)
 
 	mutex      sync.Mutex
 	connection *TCPConnection
@@ -16,14 +23,15 @@ type TCPClient struct {
 	closed     bool
 }
 
-func NewTCPClient(addr string) *TCPClient {
+func NewTCPClient(loop *falcon.EventLoop, addr string) *TCPClient {
 	client := &TCPClient{
+		loop: loop,
 		addr: addr,
 	}
 	return client
 }
 
-func (this *TCPClient) Start(connectionFunc func(*TCPConnection)) {
+func (this *TCPClient) Start() {
 	this.mutex.Lock()
 	if this.started || this.closed {
 		this.mutex.Unlock()
@@ -32,7 +40,7 @@ func (this *TCPClient) Start(connectionFunc func(*TCPConnection)) {
 	this.started = true
 	this.mutex.Unlock()
 
-	go this.connect(connectionFunc)
+	go this.connect()
 }
 
 func dialTCP(addr string) (*net.TCPConn, error) {
@@ -43,7 +51,7 @@ func dialTCP(addr string) (*net.TCPConn, error) {
 	return net.DialTCP("tcp", nil, raddr)
 }
 
-func (this *TCPClient) connect(connectionFunc func(*TCPConnection)) {
+func (this *TCPClient) connect() {
 	var tempDelay time.Duration // how long to sleep on connect failure
 	for {
 		conn, err := dialTCP(this.addr)
@@ -66,14 +74,14 @@ func (this *TCPClient) connect(connectionFunc func(*TCPConnection)) {
 		}
 		tempDelay = 0
 
-		connection := newTCPConnection(conn)
+		connection := newTCPConnection(this.loop, conn)
 
 		if !this.newConnection(connection) {
 			connection.close()
 			return
 		}
 
-		go this.serveConnection(connection, connectionFunc)
+		go this.serveConnection(connection)
 		return
 	}
 }
@@ -104,11 +112,11 @@ func (this *TCPClient) removeConnection(connection *TCPConnection) bool {
 	return true
 }
 
-func (this *TCPClient) serveConnection(connection *TCPConnection, connectionFunc func(*TCPConnection)) {
-	connectionFunc(connection)
+func (this *TCPClient) serveConnection(connection *TCPConnection) {
+	connection.serve(this.ConnectFunc, this.DisconnectFunc, this.ReceiveFunc)
 
 	if this.removeConnection(connection) {
-		go this.connect(connectionFunc)
+		go this.connect()
 	}
 }
 

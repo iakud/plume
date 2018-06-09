@@ -5,10 +5,17 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/iakud/falcon"
 )
 
 type TCPServer struct {
+	loop *falcon.EventLoop
 	addr string
+
+	ConnectFunc    func(*TCPConnection)
+	DisconnectFunc func(*TCPConnection)
+	ReceiveFunc    func(*TCPConnection, []byte)
 
 	mutex       sync.Mutex
 	listener    *net.TCPListener
@@ -17,14 +24,15 @@ type TCPServer struct {
 	closed      bool
 }
 
-func NewTCPServer(addr string) *TCPServer {
+func NewTCPServer(loop *falcon.EventLoop, addr string) *TCPServer {
 	server := &TCPServer{
+		loop: loop,
 		addr: addr,
 	}
 	return server
 }
 
-func (this *TCPServer) Start(connectionFunc func(*TCPConnection)) {
+func (this *TCPServer) Start() {
 	this.mutex.Lock()
 	if this.started || this.closed {
 		this.mutex.Unlock()
@@ -33,17 +41,16 @@ func (this *TCPServer) Start(connectionFunc func(*TCPConnection)) {
 	this.started = true
 	this.mutex.Unlock()
 
-	go this.listenAndServe(connectionFunc)
+	go this.listenAndServe()
 }
 
-func (this *TCPServer) listenAndServe(connectionFunc func(*TCPConnection)) {
+func (this *TCPServer) listenAndServe() {
 	ln, err := listenTCP(this.addr)
 	if err != nil {
 		log.Printf("TCPServer: error: %v", err)
 		return
 	}
-
-	this.serve(ln, connectionFunc)
+	this.serve(ln)
 }
 
 func listenTCP(addr string) (*net.TCPListener, error) {
@@ -57,7 +64,7 @@ func listenTCP(addr string) (*net.TCPListener, error) {
 	return net.ListenTCP("tcp", laddr)
 }
 
-func (this *TCPServer) serve(ln *net.TCPListener, connectionFunc func(*TCPConnection)) {
+func (this *TCPServer) serve(ln *net.TCPListener) {
 	defer ln.Close()
 	if !this.newListener(ln) {
 		return
@@ -86,14 +93,14 @@ func (this *TCPServer) serve(ln *net.TCPListener, connectionFunc func(*TCPConnec
 			return
 		}
 		tempDelay = 0
-		connection := newTCPConnection(conn)
+		connection := newTCPConnection(this.loop, conn)
 
 		if !this.newConnection(connection) {
 			connection.close()
 			return
 		}
 
-		go this.serveConnection(connection, connectionFunc)
+		go this.serveConnection(connection)
 	}
 }
 
@@ -133,8 +140,8 @@ func (this *TCPServer) removeConnection(connection *TCPConnection) {
 	delete(this.connections, connection)
 }
 
-func (this *TCPServer) serveConnection(connection *TCPConnection, connectionFunc func(*TCPConnection)) {
-	connectionFunc(connection)
+func (this *TCPServer) serveConnection(connection *TCPConnection) {
+	connection.serve(this.ConnectFunc, this.DisconnectFunc, this.ReceiveFunc)
 
 	this.removeConnection(connection)
 }

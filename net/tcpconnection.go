@@ -5,11 +5,17 @@ import (
 	"net"
 	"sync"
 
-	"github.com/iakud/falcon/codec"
+	"github.com/iakud/falcon"
 )
 
 type TCPConnection struct {
+	loop *falcon.EventLoop
 	conn *net.TCPConn
+
+	dec    *Decoder
+	enc    *Encoder
+	decBuf *bufio.Reader
+	encBuf *bufio.Writer
 
 	bufs   [][]byte
 	mutex  sync.Mutex
@@ -17,51 +23,55 @@ type TCPConnection struct {
 	closed bool
 }
 
-func newTCPConnection(conn *net.TCPConn) *TCPConnection {
+func newTCPConnection(loop *falcon.EventLoop, conn *net.TCPConn) *TCPConnection {
+	decBuf := bufio.NewReader(conn)
+	encBuf := bufio.NewWriter(conn)
 	connection := &TCPConnection{
-		conn: conn,
+		loop:   loop,
+		conn:   conn,
+		dec:    NewDecoder(decBuf),
+		enc:    NewEncoder(encBuf),
+		decBuf: decBuf,
+		encBuf: encBuf,
 	}
 	connection.cond = sync.NewCond(&connection.mutex)
 	conn.SetNoDelay(true) // no delay
+
+	connection.startBackgroundWrite() // start write
 	return connection
 }
 
-func (this *TCPConnection) ServeCodec(codec codec.Codec, connectFunc, disconnectFunc func(*TCPConnection), receiveFunc func(*TCPConnection, []byte)) {
-	this.startBackgroundWrite(codec) // start write
-	defer this.stopBackgroundWrite() // stop write
-
+func (this *TCPConnection) serve(connectFunc, disconnectFunc func(*TCPConnection), receiveFunc func(*TCPConnection, []byte)) {
 	if connectFunc != nil {
-		connectFunc(this)
+		this.loop.RunInLoop(func() { connectFunc(this) })
 	}
-	this.loopRead(codec, receiveFunc) // loop read
+	if receiveFunc != nil {
+		this.loopRead(receiveFunc) // loop read
+	}
 	if disconnectFunc != nil {
-		disconnectFunc(this)
+		this.loop.RunInLoop(func() { disconnectFunc(this) })
 	}
 }
 
-func (this *TCPConnection) loopRead(codec codec.Codec, receiveFunc func(*TCPConnection, []byte)) {
+func (this *TCPConnection) loopRead(receiveFunc func(*TCPConnection, []byte)) {
 	defer this.conn.Close()
 
-	rd := bufio.NewReader(this.conn)
 	for {
-		b, err := codec.Read(rd)
+		b, err := this.dec.Decode()
 		if err != nil {
 			return
 		}
-		if receiveFunc != nil {
-			receiveFunc(this, b)
-		}
+		this.loop.RunInLoop(func() { receiveFunc(this, b) })
 	}
 }
 
-func (this *TCPConnection) startBackgroundWrite(codec codec.Codec) {
-	go this.backgroundWrite(codec)
+func (this *TCPConnection) startBackgroundWrite() {
+	go this.backgroundWrite()
 }
 
-func (this *TCPConnection) backgroundWrite(codec codec.Codec) {
+func (this *TCPConnection) backgroundWrite() {
 	defer this.conn.Close()
 
-	w := bufio.NewWriter(this.conn)
 	for {
 		var bufs [][]byte
 		var closed bool
@@ -75,12 +85,12 @@ func (this *TCPConnection) backgroundWrite(codec codec.Codec) {
 		this.mutex.Unlock()
 
 		for _, b := range bufs {
-			if err := codec.Write(w, b); err != nil {
+			if err := this.enc.Encode(b); err != nil {
 				this.stopBackgroundWrite()
 				return
 			}
 		}
-		if err := w.Flush(); err != nil {
+		if err := this.encBuf.Flush(); err != nil {
 			this.stopBackgroundWrite()
 			return
 		}
