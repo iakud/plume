@@ -34,10 +34,8 @@ func NewTimer(loop *EventLoop, d time.Duration, f func()) *Timer {
 func (this *Timer) timer() {
 	select {
 	case <-this.t.C:
-		event := &eventTimer{this}
-		this.loop.RunInLoop(event)
+		this.loop.RunInLoop(func() { this.f() })
 	case <-this.done:
-
 	}
 }
 

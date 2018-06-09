@@ -4,16 +4,6 @@ import (
 	"time"
 )
 
-type eventTicker struct {
-	t    *Ticker
-	done chan struct{}
-}
-
-func (this *eventTicker) Run() {
-	close(this.done)
-	this.t.f()
-}
-
 type Ticker struct {
 	loop *EventLoop
 	t    *time.Ticker
@@ -38,8 +28,11 @@ func (this *Ticker) ticker() {
 		select {
 		case _ = <-this.t.C:
 			ch := make(chan struct{})
-			event := &eventTicker{this, ch}
-			this.loop.RunInLoop(event)
+			this.loop.RunInLoop(func() {
+				close(ch)
+				this.f()
+			})
+
 			select {
 			case <-ch:
 			case <-this.done:

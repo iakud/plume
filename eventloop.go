@@ -4,12 +4,9 @@ import (
 	"sync"
 )
 
-type Event interface {
-	Run()
-}
-
 type EventLoop struct {
-	events []Event
+	functors []func()
+
 	mutex  sync.Mutex
 	cond   *sync.Cond
 	closed bool
@@ -22,28 +19,32 @@ func NewEventLoop() *EventLoop {
 }
 
 func (this *EventLoop) Loop() {
-	var closed bool = this.IsClosed()
-	var events []Event
-	for !closed {
+	for {
+		var functors []func()
+		var closed bool
 		this.mutex.Lock()
-		for !this.closed && len(this.events) == 0 {
+		for !this.closed && len(this.functors) == 0 {
 			this.cond.Wait()
 		}
-		events = this.events
-		this.events = nil
+		functors, this.functors = this.functors, nil // swap
 		closed = this.closed
 		this.mutex.Unlock()
 
-		for _, event := range events {
-			event.Run()
+		for _, functor := range functors {
+			functor()
+		}
+		if closed {
+			return
 		}
 	}
 }
 
-func (this *EventLoop) IsClosed() bool {
+func (this *EventLoop) RunInLoop(functor func()) {
 	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	return this.closed
+	this.functors = append(this.functors, functor)
+	this.mutex.Unlock()
+
+	this.cond.Signal()
 }
 
 func (this *EventLoop) Close() {
@@ -53,14 +54,6 @@ func (this *EventLoop) Close() {
 		return
 	}
 	this.closed = true
-	this.mutex.Unlock()
-
-	this.cond.Signal()
-}
-
-func (this *EventLoop) RunInLoop(event Event) {
-	this.mutex.Lock()
-	this.events = append(this.events, event)
 	this.mutex.Unlock()
 
 	this.cond.Signal()
