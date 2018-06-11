@@ -1,46 +1,34 @@
 package net
 
 import (
-	"encoding/binary"
+	"bufio"
 	"io"
 )
 
-type Decoder struct {
-	r io.Reader
+type Codec interface {
+	Read(r io.Reader) ([]byte, error)
+	Write(w io.Writer, b []byte) error
 }
 
-func NewDecoder(r io.Reader) *Decoder {
-	return &Decoder{r: r}
+type defaultCodec struct {
 }
 
-func (this *Decoder) Decode() ([]byte, error) {
-	h := make([]byte, 2)
-	if _, err := io.ReadFull(this.r, h); err != nil {
+var DefaultCodec defaultCodec
+
+func (this *defaultCodec) Read(r io.Reader) ([]byte, error) {
+	rBuf := bufio.NewReader(r)
+	if _, err := rBuf.Peek(1); err != nil {
 		return nil, err
 	}
-	n := binary.BigEndian.Uint16(h)
-	b := make([]byte, n)
-	if _, err := io.ReadFull(this.r, b); err != nil {
+	b := make([]byte, rBuf.Buffered())
+	if _, err := rBuf.Read(b); err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
-type Encoder struct {
-	w io.Writer
-}
-
-func NewEncoder(w io.Writer) *Encoder {
-	return &Encoder{w: w}
-}
-
-func (this *Encoder) Encode(b []byte) error {
-	h := make([]byte, 2)
-	binary.BigEndian.PutUint16(h, uint16(len(b)))
-	if _, err := this.w.Write(h); err != nil {
-		return err
-	}
-	if _, err := this.w.Write(b); err != nil {
+func (this *defaultCodec) Write(w io.Writer, b []byte) error {
+	if _, err := w.Write(b); err != nil {
 		return err
 	}
 	return nil

@@ -5,13 +5,11 @@ import (
 	"net"
 	"sync"
 	"time"
-
-	"github.com/iakud/falcon"
 )
 
 type TCPServer struct {
-	loop *falcon.EventLoop
-	addr string
+	addr  string
+	codec Codec
 
 	ConnectFunc    func(*TCPConnection)
 	DisconnectFunc func(*TCPConnection)
@@ -24,10 +22,10 @@ type TCPServer struct {
 	closed      bool
 }
 
-func NewTCPServer(loop *falcon.EventLoop, addr string) *TCPServer {
+func NewTCPServer(addr string, codec Codec) *TCPServer {
 	server := &TCPServer{
-		loop: loop,
-		addr: addr,
+		addr:  addr,
+		codec: codec,
 	}
 	return server
 }
@@ -93,7 +91,10 @@ func (this *TCPServer) serve(ln *net.TCPListener) {
 			return
 		}
 		tempDelay = 0
-		connection := newTCPConnection(this.loop, conn)
+		connection := newTCPConnection(conn, this.codec)
+		connection.connectFunc = this.ConnectFunc
+		connection.disconnectFunc = this.DisconnectFunc
+		connection.receiveFunc = this.ReceiveFunc
 
 		if !this.newConnection(connection) {
 			connection.close()
@@ -141,7 +142,7 @@ func (this *TCPServer) removeConnection(connection *TCPConnection) {
 }
 
 func (this *TCPServer) serveConnection(connection *TCPConnection) {
-	connection.serve(this.ConnectFunc, this.DisconnectFunc, this.ReceiveFunc)
+	connection.serve()
 
 	this.removeConnection(connection)
 }

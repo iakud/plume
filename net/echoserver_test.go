@@ -3,19 +3,15 @@ package net
 import (
 	"log"
 	"testing"
-
-	"github.com/iakud/falcon"
 )
 
 type EchoServer struct {
-	loop   *falcon.EventLoop
 	server *TCPServer
 }
 
-func NewEchoServer(loop *falcon.EventLoop, addr string) *EchoServer {
-	server := NewTCPServer(loop, addr)
+func NewEchoServer(addr string) *EchoServer {
+	server := NewTCPServer(addr, &DefaultCodec)
 	echoServer := &EchoServer{
-		loop:   loop,
 		server: server,
 	}
 	server.ConnectFunc = echoServer.onConnect
@@ -33,16 +29,16 @@ func (this *EchoServer) Close() {
 }
 
 func (this *EchoServer) onConnect(connection *TCPConnection) {
-	log.Println("server: connected.")
+	log.Println("echo server: connected.")
 }
 
 func (this *EchoServer) onDisconnect(connection *TCPConnection) {
-	log.Println("server: disconnected.")
+	log.Println("echo server: disconnected.")
 }
 
 func (this *EchoServer) onReceive(connection *TCPConnection, b []byte) {
 	message := string(b)
-	log.Println("server: receive", message)
+	log.Println("echo server: receive", message)
 	connection.Send(b)
 	connection.Shutdown()
 }
@@ -50,15 +46,15 @@ func (this *EchoServer) onReceive(connection *TCPConnection, b []byte) {
 var Message string = "hello"
 
 type EchoClient struct {
-	loop   *falcon.EventLoop
 	client *TCPClient
+	done   chan struct{}
 }
 
-func NewEchoClient(loop *falcon.EventLoop, addr string) *EchoClient {
-	client := NewTCPClient(loop, addr)
+func NewEchoClient(addr string) *EchoClient {
+	client := NewTCPClient(addr, &DefaultCodec)
 	echoClient := &EchoClient{
-		loop:   loop,
 		client: client,
+		done:   make(chan struct{}),
 	}
 	client.ConnectFunc = echoClient.onConnect
 	client.DisconnectFunc = echoClient.onDisconnect
@@ -75,31 +71,32 @@ func (this *EchoClient) Close() {
 }
 
 func (this *EchoClient) onConnect(connection *TCPConnection) {
-	log.Println("client: connected.")
-	log.Println("client: send", Message)
+	log.Println("echo client: connected.")
+	log.Println("echo client: send", Message)
 	connection.Send([]byte(Message))
 }
 
 func (this *EchoClient) onDisconnect(connection *TCPConnection) {
-	log.Println("client: disconnected.")
+	log.Println("echo client: disconnected.")
 	this.client.Close()
-	this.loop.Close()
+	close(this.done)
 }
 
 func (this *EchoClient) onReceive(connection *TCPConnection, b []byte) {
-	log.Println("client: receive ", string(b))
+	log.Println("echo client: receive ", string(b))
+}
+
+func (this *EchoClient) Done() {
+	<-this.done
 }
 
 func TestEcho(t *testing.T) {
-	loop := falcon.NewEventLoop()
-	echoServer := NewEchoServer(loop, "localhost:8000")
+	echoServer := NewEchoServer("localhost:8000")
 	echoServer.Start()
 
-	echoClient := NewEchoClient(loop, "localhost:8000")
+	echoClient := NewEchoClient("localhost:8000")
 	echoClient.Start()
 
-	loop.Loop() // loop
-
-	echoClient.Close()
+	echoClient.Done()
 	echoServer.Close()
 }
