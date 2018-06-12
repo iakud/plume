@@ -19,25 +19,15 @@ func NewTicker(loop *EventLoop, d time.Duration, f func()) *Ticker {
 		f:    f,
 		done: make(chan struct{}),
 	}
-	go ticker.ticker()
+	go ticker.serve()
 	return ticker
 }
 
-func (this *Ticker) ticker() {
+func (this *Ticker) serve() {
 	for {
 		select {
 		case _ = <-this.t.C:
-			ch := make(chan struct{})
-			this.loop.RunInLoop(func() {
-				close(ch)
-				this.f()
-			})
-
-			select {
-			case <-ch:
-			case <-this.done:
-				return
-			}
+			this.onTicker()
 		case <-this.done:
 			return
 		}
@@ -50,5 +40,23 @@ func (this *Ticker) Stop() {
 	case <-this.done:
 	default:
 		close(this.done)
+	}
+}
+
+func (this *Ticker) onTicker() {
+	ch := make(chan struct{})
+	if this.loop == nil {
+		close(ch)
+		this.f()
+	} else {
+		this.loop.RunInLoop(func() {
+			close(ch)
+			this.f()
+		})
+	}
+	select {
+	case <-ch:
+	case <-this.done:
+		return
 	}
 }

@@ -27,14 +27,14 @@ func NewTimer(loop *EventLoop, d time.Duration, f func()) *Timer {
 		f:    f,
 		done: make(chan struct{}),
 	}
-	go timer.timer()
+	go timer.serve()
 	return timer
 }
 
-func (this *Timer) timer() {
+func (this *Timer) serve() {
 	select {
 	case <-this.t.C:
-		this.loop.RunInLoop(func() { this.f() })
+		this.onTimer()
 	case <-this.done:
 	}
 }
@@ -45,5 +45,13 @@ func (this *Timer) Stop() {
 	case <-this.done:
 	default:
 		close(this.done)
+	}
+}
+
+func (this *Timer) onTimer() {
+	if this.loop == nil {
+		this.f()
+	} else {
+		this.loop.RunInLoop(func() { this.f() })
 	}
 }
