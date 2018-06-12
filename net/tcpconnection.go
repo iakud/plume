@@ -4,9 +4,12 @@ import (
 	"bufio"
 	"net"
 	"sync"
+
+	"github.com/iakud/falcon"
 )
 
 type TCPConnection struct {
+	loop  *falcon.EventLoop
 	conn  *net.TCPConn
 	codec Codec
 
@@ -18,10 +21,13 @@ type TCPConnection struct {
 	mutex  sync.Mutex
 	cond   *sync.Cond
 	closed bool
+
+	Userdata interface{}
 }
 
-func newTCPConnection(conn *net.TCPConn, codec Codec) *TCPConnection {
+func newTCPConnection(loop *falcon.EventLoop, conn *net.TCPConn, codec Codec) *TCPConnection {
 	connection := &TCPConnection{
+		loop:  loop,
 		conn:  conn,
 		codec: codec,
 	}
@@ -33,13 +39,9 @@ func newTCPConnection(conn *net.TCPConn, codec Codec) *TCPConnection {
 }
 
 func (this *TCPConnection) serve() {
-	if this.connectFunc != nil {
-		this.connectFunc(this)
-	}
+	this.onConnect()
 	this.loopRead() // loop read
-	if this.disconnectFunc != nil {
-		this.disconnectFunc(this)
-	}
+	this.onDisconnect()
 }
 
 func (this *TCPConnection) loopRead() {
@@ -51,9 +53,7 @@ func (this *TCPConnection) loopRead() {
 		if err != nil {
 			return
 		}
-		if this.receiveFunc != nil {
-			this.receiveFunc(this, b)
-		}
+		this.onReceive(b)
 	}
 }
 
@@ -66,7 +66,17 @@ func (this *TCPConnection) backgroundWrite() {
 
 	w := bufio.NewWriter(this.conn)
 	for {
-		bufs, closed := this.waitForBuffers()
+		var bufs [][]byte
+		var closed bool
+
+		this.mutex.Lock()
+		for !this.closed && len(this.bufs) == 0 {
+			this.cond.Wait()
+		}
+		bufs, this.bufs = this.bufs, bufs // swap
+		closed = this.closed
+		this.mutex.Unlock()
+
 		for _, b := range bufs {
 			if err := this.codec.Write(w, b); err != nil {
 				this.closeSend()
@@ -81,19 +91,6 @@ func (this *TCPConnection) backgroundWrite() {
 			return
 		}
 	}
-}
-
-func (this *TCPConnection) waitForBuffers() ([][]byte, bool) {
-	var bufs [][]byte
-	var closed bool
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	for !this.closed && len(this.bufs) == 0 {
-		this.cond.Wait()
-	}
-	bufs, this.bufs = this.bufs, bufs // swap
-	closed = this.closed
-	return bufs, closed
 }
 
 func (this *TCPConnection) stopBackgroundWrite() {
@@ -137,4 +134,37 @@ func (this *TCPConnection) close() {
 
 func (this *TCPConnection) Shutdown() {
 	this.stopBackgroundWrite() // stop write
+}
+
+func (this *TCPConnection) onConnect() {
+	if this.connectFunc == nil {
+		return
+	}
+	if this.loop == nil {
+		this.connectFunc(this)
+		return
+	}
+	this.loop.RunInLoop(func() { this.connectFunc(this) })
+}
+
+func (this *TCPConnection) onDisconnect() {
+	if this.disconnectFunc == nil {
+		return
+	}
+	if this.loop == nil {
+		this.disconnectFunc(this)
+		return
+	}
+	this.loop.RunInLoop(func() { this.disconnectFunc(this) })
+}
+
+func (this *TCPConnection) onReceive(b []byte) {
+	if this.receiveFunc == nil {
+		return
+	}
+	if this.loop == nil {
+		this.receiveFunc(this, b)
+		return
+	}
+	this.loop.RunInLoop(func() { this.receiveFunc(this, b) })
 }
