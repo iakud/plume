@@ -10,6 +10,12 @@ type Key struct {
 	value string
 }
 
+func newKey(name string) *Key {
+	key := new(Key)
+	key.name = name
+	return key
+}
+
 func (this *Key) Name() string {
 	return this.name
 }
