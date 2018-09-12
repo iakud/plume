@@ -7,6 +7,13 @@ type Section struct {
 	keyMap map[string]*Key
 }
 
+func newSection(name string) *Section {
+	section := new(Section)
+	section.name = name
+	section.keyMap = make(map[string]*Key)
+	return section
+}
+
 func (this *Section) addKey(name, value string) *Key {
 	if key, ok := this.keyMap[name]; ok {
 		key.value = value
