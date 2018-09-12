@@ -10,9 +10,10 @@ type Key struct {
 	value string
 }
 
-func newKey(name string) *Key {
+func newKey(name, value string) *Key {
 	key := new(Key)
 	key.name = name
+	key.value = value
 	return key
 }
 
