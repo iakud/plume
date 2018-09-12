@@ -19,5 +19,6 @@ func (this *File) GetSection(name string) *Section {
 	if section, ok := this.sectionMap[name]; ok {
 		return section
 	}
+
 	return nil
 }
