@@ -2,22 +2,21 @@ package log
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"time"
 )
 
 var pid = os.Getpid()
 
-type File struct {
+type file struct {
 	f *os.File
 }
 
-func (this *File) Write() {
+func (this *file) Write() {
 
 }
 
-func (this *File) rollFile() {
+func (this *file) rollFile() {
 
 }
 
@@ -31,4 +30,9 @@ func logName(name string, t time.Time) string {
 		t.Minute(),
 		t.Second(),
 		pid)
+}
+
+func (this *file) rotate() {
+	this.f.Sync()
+	this.f.Close()
 }
