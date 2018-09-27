@@ -1,6 +1,7 @@
 package log
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"time"
@@ -8,8 +9,13 @@ import (
 
 var pid = os.Getpid()
 
+const bufferSize = 256 * 1024
+
 type file struct {
+	w *bufio.Writer
 	f *os.File
+
+	nbytes uint64 // The number of bytes written to this file
 }
 
 func (this *file) Write() {
@@ -33,6 +39,8 @@ func logName(name string, t time.Time) string {
 }
 
 func (this *file) rotate() {
-	this.f.Sync()
-	this.f.Close()
+	if this.f != nil {
+		this.w.Flush()
+		this.f.Close()
+	}
 }
