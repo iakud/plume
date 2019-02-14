@@ -10,6 +10,14 @@ type Codec interface {
 	Write(w io.Writer, b []byte) error
 }
 
+type CodecReader interface {
+	Read(r io.Reader) ([]byte, error)
+}
+
+type CodecWriter interface {
+	Write(w io.Writer, b []byte) error
+}
+
 type defaultCodec struct {
 }
 
