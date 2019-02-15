@@ -1,48 +1,34 @@
 package net
 
 import (
+	"errors"
 	"log"
 	"net"
 	"sync"
 	"time"
+)
 
-	"github.com/iakud/falcon"
+var (
+	ErrClientClosed = errors.New("net: Client closed")
 )
 
 type TCPClient struct {
-	loop  *falcon.EventLoop
-	addr  string
-	codec Codec
-
-	ConnectFunc    func(*TCPConnection)
-	DisconnectFunc func(*TCPConnection)
-	ReceiveFunc    func(*TCPConnection, []byte)
+	addr    string
+	handler TCPHandler
+	codec   Codec
 
 	mutex      sync.Mutex
 	connection *TCPConnection
-	started    bool
 	closed     bool
 }
 
-func NewTCPClient(loop *falcon.EventLoop, addr string, codec Codec) *TCPClient {
+func NewTCPClient(addr string, handler TCPHandler, codec Codec) *TCPClient {
 	client := &TCPClient{
-		loop:  loop,
-		addr:  addr,
-		codec: codec,
+		addr:    addr,
+		handler: handler,
+		codec:   codec,
 	}
 	return client
-}
-
-func (this *TCPClient) Start() {
-	this.mutex.Lock()
-	if this.started || this.closed {
-		this.mutex.Unlock()
-		return
-	}
-	this.started = true
-	this.mutex.Unlock()
-
-	go this.connect()
 }
 
 func dialTCP(addr string) (*net.TCPConn, error) {
@@ -53,13 +39,17 @@ func dialTCP(addr string) (*net.TCPConn, error) {
 	return net.DialTCP("tcp", nil, raddr)
 }
 
-func (this *TCPClient) connect() {
+func (this *TCPClient) ConnectAndServe() error {
+	if this.isClosed() {
+		return ErrClientClosed
+	}
+
 	var tempDelay time.Duration // how long to sleep on connect failure
 	for {
 		conn, err := dialTCP(this.addr)
 		if err != nil {
 			if this.isClosed() {
-				return
+				return ErrClientClosed
 			}
 
 			if tempDelay == 0 {
@@ -76,19 +66,25 @@ func (this *TCPClient) connect() {
 		}
 		tempDelay = 0
 
-		connection := newTCPConnection(this.loop, conn, this.codec)
-		connection.connectFunc = this.ConnectFunc
-		connection.disconnectFunc = this.DisconnectFunc
-		connection.receiveFunc = this.ReceiveFunc
-
-		if !this.newConnection(connection) {
-			connection.close()
-			return
+		if err := this.serve(conn); err != nil {
+			return err
 		}
 
-		go this.serveConnection(connection)
-		return
+		connection := newTCPConnection(conn, this.handler, this.codec)
+		if err := this.newConnection(connection); err != nil {
+			return err
+		}
 	}
+}
+
+func (this *TCPClient) serve(conn *net.TCPConn) error {
+	connection := newTCPConnection(conn, this.handler, this.codec)
+	defer connection.close()
+
+	if err := this.newConnection(connection); err != nil {
+		return err
+	}
+	return this.serveConnection(connection)
 }
 
 func (this *TCPClient) isClosed() bool {
@@ -97,55 +93,52 @@ func (this *TCPClient) isClosed() bool {
 	return this.closed
 }
 
-func (this *TCPClient) newConnection(connection *TCPConnection) bool {
+func (this *TCPClient) newConnection(connection *TCPConnection) error {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
+
 	if this.closed {
-		return false
+		return ErrClientClosed
 	}
 	this.connection = connection
-	return true
+	return nil
 }
 
-func (this *TCPClient) removeConnection(connection *TCPConnection) bool {
+func (this *TCPClient) serveConnection(connection *TCPConnection) error {
+	connection.serve()
+	// remove connection
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
+
 	if this.closed {
-		return false
+		return ErrClientClosed
 	}
 	this.connection = nil
-	return true
-}
-
-func (this *TCPClient) serveConnection(connection *TCPConnection) {
-	connection.serve()
-
-	if this.removeConnection(connection) {
-		go this.connect()
-	}
+	return nil
 }
 
 func (this *TCPClient) GetConnection() *TCPConnection {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
+
 	if this.closed {
 		return nil
 	}
 	return this.connection
 }
 
-func (this *TCPClient) Close() {
+func (this *TCPClient) Close() error {
 	this.mutex.Lock()
+	defer this.mutex.Unlock()
+
 	if this.closed {
-		this.mutex.Unlock()
-		return
+		return nil
 	}
 	this.closed = true
-	this.mutex.Unlock()
-
 	if this.connection == nil {
-		return
+		return nil
 	}
-	this.connection.close()
+	err := this.connection.close()
 	this.connection = nil
+	return err
 }
