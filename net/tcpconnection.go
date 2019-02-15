@@ -35,11 +35,10 @@ type TCPConnection struct {
 	handler TCPHandler
 	codec   Codec
 
-	bufs    [][]byte
-	mutex   sync.Mutex
-	cond    *sync.Cond
-	started bool
-	closed  bool
+	bufs   [][]byte
+	mutex  sync.Mutex
+	cond   *sync.Cond
+	closed bool
 
 	Userdata interface{}
 }
@@ -82,10 +81,6 @@ func (this *TCPConnection) startBackgroundWrite() {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 
-	if this.started {
-		return
-	}
-	this.started = true
 	if this.closed {
 		return
 	}
@@ -153,9 +148,9 @@ func (this *TCPConnection) Send(b []byte) {
 	this.cond.Signal()
 }
 
-func (this *TCPConnection) close() {
+func (this *TCPConnection) close() error {
 	this.conn.SetLinger(0)
-	this.conn.Close()
+	return this.conn.Close()
 }
 
 func (this *TCPConnection) Shutdown() {
