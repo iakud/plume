@@ -20,6 +20,7 @@ func (this *EchoServer) ListenAndServe() {
 		log.Println(err)
 	}
 }
+
 func (this *EchoServer) Close() {
 	this.server.Close()
 }
