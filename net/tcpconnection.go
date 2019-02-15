@@ -22,118 +22,33 @@ func (*defaultTCPHandler) Connect(*TCPConnection) {
 func (*defaultTCPHandler) Disconnect(*TCPConnection) {
 
 }
+
 func (*defaultTCPHandler) Receive(*TCPConnection, []byte) {
 
 }
 
-var DefaultTCPHandler defaultTCPHandler
+var DefaultTCPHandler *defaultTCPHandler = &defaultTCPHandler{}
 
-type TCPConnectionWriter struct {
+type TCPConnection struct {
 	conn *net.TCPConn
+
+	handler TCPHandler
+	codec   Codec
 
 	bufs    [][]byte
 	mutex   sync.Mutex
 	cond    *sync.Cond
 	started bool
 	closed  bool
-}
-
-func newTCPConnectionWriter(conn *net.TCPConn) *TCPConnectionWriter {
-	writer := &TCPConnectionWriter{conn: conn}
-	writer.cond = sync.NewCond(&writer.mutex)
-	return writer
-}
-
-func (this *TCPConnectionWriter) startBackgroundWrite(cw CodecWriter) {
-	this.mutex.Lock()
-	if this.started {
-		this.mutex.Unlock()
-		return
-	}
-	this.started = true
-	this.mutex.Unlock()
-
-	go this.backgroundWrite(cw)
-}
-
-func (this *TCPConnectionWriter) backgroundWrite(cw CodecWriter) {
-	defer this.conn.Close()
-
-	w := bufio.NewWriter(this.conn)
-	for {
-		var bufs [][]byte
-		var closed bool
-
-		this.mutex.Lock()
-		for !this.closed && len(this.bufs) == 0 {
-			this.cond.Wait()
-		}
-		bufs, this.bufs = this.bufs, bufs // swap
-		closed = this.closed
-		this.mutex.Unlock()
-
-		for _, b := range bufs {
-			if err := cw.Write(w, b); err != nil {
-				this.closeSend()
-				return
-			}
-		}
-		if err := w.Flush(); err != nil {
-			this.closeSend()
-			return
-		}
-		if closed {
-			return
-		}
-	}
-}
-
-func (this *TCPConnectionWriter) stopBackgroundWrite() {
-	this.mutex.Lock()
-	if this.closed {
-		this.mutex.Unlock()
-		return
-	}
-	this.closed = true
-	this.mutex.Unlock()
-
-	this.cond.Signal()
-}
-
-func (this *TCPConnectionWriter) closeSend() {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	if this.closed {
-		return
-	}
-	this.closed = true
-}
-
-func (this *TCPConnectionWriter) Send(b []byte) {
-	this.mutex.Lock()
-	if this.closed {
-		this.mutex.Unlock()
-		return
-	}
-	this.bufs = append(this.bufs, b)
-	this.mutex.Unlock()
-
-	this.cond.Signal()
-}
-
-type TCPConnection struct {
-	conn  *net.TCPConn
-	codec Codec
-
-	w *TCPConnectionWriter
 
 	Userdata interface{}
 }
 
-func newTCPConnection(conn *net.TCPConn, codec Codec) *TCPConnection {
+func newTCPConnection(conn *net.TCPConn, handler TCPHandler, codec Codec) *TCPConnection {
 	connection := &TCPConnection{
-		conn:  conn,
-		codec: codec,
+		conn:    conn,
+		handler: handler,
+		codec:   codec,
 	}
 	connection.cond = sync.NewCond(&connection.mutex)
 	conn.SetNoDelay(true) // no delay
@@ -141,15 +56,17 @@ func newTCPConnection(conn *net.TCPConn, codec Codec) *TCPConnection {
 	return connection
 }
 
-func (this *TCPConnection) serve(handler TCPHandler) {
-	if handler == nil {
-		handler = DefaultTCPHandler
-	}
+func (this *TCPConnection) serve() {
+	this.startBackgroundWrite()
+	defer this.stopBackgroundWrite()
 
-	this.w = newTCPConnectionWriter(this.conn)
-	this.startBackgroundWrite(this.codec)
+	this.handler.Connect(this)
+	this.loopRead() // loop read
+	this.handler.Disconnect(this)
+}
 
-	handler.Connect(this)
+func (this *TCPConnection) loopRead() {
+	defer this.conn.Close()
 
 	r := bufio.NewReader(this.conn)
 	for {
@@ -157,16 +74,21 @@ func (this *TCPConnection) serve(handler TCPHandler) {
 		if err != nil {
 			return
 		}
-		handler.Receive(this, b)
+		this.handler.Receive(this, b)
 	}
-	this.conn.Close()
-
-	this.loopRead(handler) // loop read
-	this.stopBackgroundWrite()
-	handler.Disconnect(this)
 }
 
 func (this *TCPConnection) startBackgroundWrite() {
+	this.mutex.Lock()
+	defer this.mutex.Unlock()
+
+	if this.started {
+		return
+	}
+	this.started = true
+	if this.closed {
+		return
+	}
 	go this.backgroundWrite()
 }
 
@@ -174,9 +96,8 @@ func (this *TCPConnection) backgroundWrite() {
 	defer this.conn.Close()
 
 	w := bufio.NewWriter(this.conn)
-	for {
+	for closed := false; !closed; {
 		var bufs [][]byte
-		var closed bool
 
 		this.mutex.Lock()
 		for !this.closed && len(this.bufs) == 0 {
@@ -196,27 +117,24 @@ func (this *TCPConnection) backgroundWrite() {
 			this.closeSend()
 			return
 		}
-		if closed {
-			return
-		}
 	}
 }
 
 func (this *TCPConnection) stopBackgroundWrite() {
 	this.mutex.Lock()
+	defer this.mutex.Unlock()
+
 	if this.closed {
-		this.mutex.Unlock()
 		return
 	}
 	this.closed = true
-	this.mutex.Unlock()
-
 	this.cond.Signal()
 }
 
 func (this *TCPConnection) closeSend() {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
+
 	if this.closed {
 		return
 	}
@@ -238,7 +156,6 @@ func (this *TCPConnection) Send(b []byte) {
 func (this *TCPConnection) close() {
 	this.conn.SetLinger(0)
 	this.conn.Close()
-	this.stopBackgroundWrite() // stop write
 }
 
 func (this *TCPConnection) Shutdown() {

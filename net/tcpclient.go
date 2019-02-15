@@ -5,12 +5,9 @@ import (
 	"net"
 	"sync"
 	"time"
-
-	"github.com/iakud/falcon"
 )
 
 type TCPClient struct {
-	loop  *falcon.EventLoop
 	addr  string
 	codec Codec
 
@@ -24,9 +21,8 @@ type TCPClient struct {
 	closed     bool
 }
 
-func NewTCPClient(loop *falcon.EventLoop, addr string, codec Codec) *TCPClient {
+func NewTCPClient(addr string, codec Codec) *TCPClient {
 	client := &TCPClient{
-		loop:  loop,
 		addr:  addr,
 		codec: codec,
 	}
@@ -76,10 +72,7 @@ func (this *TCPClient) connect() {
 		}
 		tempDelay = 0
 
-		connection := newTCPConnection(this.loop, conn, this.codec)
-		connection.connectFunc = this.ConnectFunc
-		connection.disconnectFunc = this.DisconnectFunc
-		connection.receiveFunc = this.ReceiveFunc
+		connection := newTCPConnection(conn, nil, this.codec)
 
 		if !this.newConnection(connection) {
 			connection.close()

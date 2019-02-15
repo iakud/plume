@@ -21,7 +21,7 @@ type CodecWriter interface {
 type defaultCodec struct {
 }
 
-var DefaultCodec defaultCodec
+var DefaultCodec *defaultCodec = &defaultCodec{}
 
 func (this *defaultCodec) Read(r io.Reader) ([]byte, error) {
 	rBuf := bufio.NewReader(r)
