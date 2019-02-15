@@ -60,6 +60,16 @@ func (this *TCPServer) serve(ln *net.TCPListener) error {
 	if err := this.newListener(ln); err != nil {
 		return err
 	}
+
+	handler := this.handler
+	if handler == nil {
+		handler = DefaultTCPHandler
+	}
+	codec := this.codec
+	if codec == nil {
+		codec = DefaultCodec
+	}
+
 	var tempDelay time.Duration // how long to sleep on accept failure
 	for {
 		conn, err := ln.AcceptTCP()
@@ -85,7 +95,7 @@ func (this *TCPServer) serve(ln *net.TCPListener) error {
 		}
 		tempDelay = 0
 
-		connection := newTCPConnection(conn, this.handler, this.codec)
+		connection := newTCPConnection(conn, handler, codec)
 		if err := this.newConnection(connection); err != nil {
 			connection.close() // close
 			return err
@@ -136,22 +146,21 @@ func (this *TCPServer) serveConnection(connection *TCPConnection) {
 	delete(this.connections, connection)
 }
 
-func (this *TCPServer) Close() error {
+func (this *TCPServer) Close() {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 
 	if this.closed {
-		return nil
+		return
 	}
 	this.closed = true
 	if this.listener == nil {
-		return nil
+		return
 	}
-	err := this.listener.Close()
+	this.listener.Close()
 	this.listener = nil
 	for connection := range this.connections {
 		connection.close()
 		delete(this.connections, connection)
 	}
-	return err
 }

@@ -11,7 +11,7 @@ type EchoServer struct {
 
 func NewEchoServer(addr string) *EchoServer {
 	echoServer := &EchoServer{}
-	echoServer.server = NewTCPServer(addr, echoServer, DefaultCodec)
+	echoServer.server = NewTCPServer(addr, echoServer, nil)
 	return echoServer
 }
 
@@ -20,11 +20,8 @@ func (this *EchoServer) ListenAndServe() {
 		log.Println(err)
 	}
 }
-
 func (this *EchoServer) Close() {
-	if err := this.server.Close(); err != nil {
-		log.Println(err)
-	}
+	this.server.Close()
 }
 
 func (this *EchoServer) Connect(connection *TCPConnection) {
@@ -46,14 +43,11 @@ var Message string = "hello"
 
 type EchoClient struct {
 	client *TCPClient
-	done   chan struct{}
 }
 
 func NewEchoClient(addr string) *EchoClient {
-	echoClient := &EchoClient{
-		done: make(chan struct{}),
-	}
-	echoClient.client = NewTCPClient(addr, echoClient, DefaultCodec)
+	echoClient := &EchoClient{}
+	echoClient.client = NewTCPClient(addr, echoClient, nil)
 	return echoClient
 }
 
@@ -61,10 +55,6 @@ func (this *EchoClient) ConnectAndServe() {
 	if err := this.client.ConnectAndServe(); err != nil {
 		log.Println(err)
 	}
-}
-
-func (this *EchoClient) Done() {
-	<-this.done
 }
 
 func (this *EchoClient) Connect(connection *TCPConnection) {
@@ -75,11 +65,7 @@ func (this *EchoClient) Connect(connection *TCPConnection) {
 
 func (this *EchoClient) Disconnect(connection *TCPConnection) {
 	log.Println("echo client: disconnected.")
-
-	if err := this.client.Close(); err != nil {
-		log.Println(err)
-	}
-	close(this.done)
+	this.client.Close()
 }
 
 func (this *EchoClient) Receive(connection *TCPConnection, b []byte) {
@@ -88,11 +74,10 @@ func (this *EchoClient) Receive(connection *TCPConnection, b []byte) {
 
 func TestEcho(t *testing.T) {
 	echoServer := NewEchoServer("localhost:8000")
-	go echoServer.ListenAndServe()
-
-	echoClient := NewEchoClient("localhost:8000")
-	go echoClient.ConnectAndServe()
-
-	echoClient.Done()
-	echoServer.Close()
+	go func() {
+		echoClient := NewEchoClient("localhost:8000")
+		echoClient.ConnectAndServe()
+		echoServer.Close()
+	}()
+	echoServer.ListenAndServe()
 }

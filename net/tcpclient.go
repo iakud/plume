@@ -44,6 +44,15 @@ func (this *TCPClient) ConnectAndServe() error {
 		return ErrClientClosed
 	}
 
+	handler := this.handler
+	if handler == nil {
+		handler = DefaultTCPHandler
+	}
+	codec := this.codec
+	if codec == nil {
+		codec = DefaultCodec
+	}
+
 	var tempDelay time.Duration // how long to sleep on connect failure
 	for {
 		conn, err := dialTCP(this.addr)
@@ -66,25 +75,15 @@ func (this *TCPClient) ConnectAndServe() error {
 		}
 		tempDelay = 0
 
-		if err := this.serve(conn); err != nil {
-			return err
-		}
-
-		connection := newTCPConnection(conn, this.handler, this.codec)
+		connection := newTCPConnection(conn, handler, codec)
 		if err := this.newConnection(connection); err != nil {
+			connection.close()
+			return err
+		}
+		if err := this.serveConnection(connection); err != nil {
 			return err
 		}
 	}
-}
-
-func (this *TCPClient) serve(conn *net.TCPConn) error {
-	connection := newTCPConnection(conn, this.handler, this.codec)
-	defer connection.close()
-
-	if err := this.newConnection(connection); err != nil {
-		return err
-	}
-	return this.serveConnection(connection)
 }
 
 func (this *TCPClient) isClosed() bool {
@@ -127,18 +126,17 @@ func (this *TCPClient) GetConnection() *TCPConnection {
 	return this.connection
 }
 
-func (this *TCPClient) Close() error {
+func (this *TCPClient) Close() {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 
 	if this.closed {
-		return nil
+		return
 	}
 	this.closed = true
 	if this.connection == nil {
-		return nil
+		return
 	}
-	err := this.connection.close()
+	this.connection.close()
 	this.connection = nil
-	return err
 }

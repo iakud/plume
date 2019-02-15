@@ -148,9 +148,9 @@ func (this *TCPConnection) Send(b []byte) {
 	this.cond.Signal()
 }
 
-func (this *TCPConnection) close() error {
+func (this *TCPConnection) close() {
 	this.conn.SetLinger(0)
-	return this.conn.Close()
+	this.conn.Close()
 }
 
 func (this *TCPConnection) Shutdown() {
