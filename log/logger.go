@@ -19,3 +19,7 @@ func (this *Logger) printf(s severity, format string, args ...interface{}) {
 	fmt.Fprintf(b, format, args...)
 	b.WriteByte('\n')
 }
+
+type innerLogger interface {
+	innerLog()
+}
