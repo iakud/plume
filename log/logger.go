@@ -3,6 +3,9 @@ package log
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
+	"runtime"
+	"strings"
 )
 
 type Logger interface {
@@ -27,6 +30,10 @@ type Logger interface {
 type logger struct {
 }
 
+func (this *logger) logDepth(s severity, message fmt.Stringer, depth int) {
+
+}
+
 func (this *Logger) print(s severity, args ...interface{}) {
 	b := bytes.Buffer{}
 	fmt.Fprint(b, args...)
@@ -37,6 +44,7 @@ func (this *Logger) printf(s severity, format string, args ...interface{}) {
 	b := bytes.Buffer{}
 	fmt.Fprintf(b, format, args...)
 	b.WriteByte('\n')
+
 }
 
 type innerLogger interface {
