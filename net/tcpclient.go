@@ -1,6 +1,7 @@
 package net
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net"
@@ -13,49 +14,54 @@ var (
 )
 
 type TCPClient struct {
-	addr    string
-	handler TCPHandler
-	codec   Codec
+	ctx    context.Context
+	cancel context.CancelFunc
+	addr   string
 
 	mutex      sync.Mutex
 	connection *TCPConnection
 	closed     bool
 }
 
-func NewTCPClient(addr string, handler TCPHandler, codec Codec) *TCPClient {
+func NewTCPClient(addr string) *TCPClient {
+	ctx, cancel := context.WithCancel(context.Background())
 	client := &TCPClient{
-		addr:    addr,
-		handler: handler,
-		codec:   codec,
+		ctx:    ctx,
+		cancel: cancel,
+		addr:   addr,
 	}
 	return client
 }
 
-func dialTCP(addr string) (*net.TCPConn, error) {
-	raddr, err := net.ResolveTCPAddr("tcp", addr)
+func dialTCPContext(ctx context.Context, addr string) (*net.TCPConn, error) {
+	var dialer net.Dialer
+	c, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, err
 	}
-	return net.DialTCP("tcp", nil, raddr)
+	conn, ok := c.(*net.TCPConn)
+	if !ok {
+		c.Close() // close
+		return nil, errors.New("unexpected type")
+	}
+	return conn, nil
 }
 
-func (this *TCPClient) ConnectAndServe() error {
+func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
 	if this.isClosed() {
 		return ErrClientClosed
 	}
 
-	handler := this.handler
 	if handler == nil {
 		handler = DefaultTCPHandler
 	}
-	codec := this.codec
 	if codec == nil {
 		codec = DefaultCodec
 	}
 
 	var tempDelay time.Duration // how long to sleep on connect failure
 	for {
-		conn, err := dialTCP(this.addr)
+		conn, err := dialTCPContext(this.ctx, this.addr)
 		if err != nil {
 			if this.isClosed() {
 				return ErrClientClosed
@@ -127,6 +133,8 @@ func (this *TCPClient) GetConnection() *TCPConnection {
 }
 
 func (this *TCPClient) Close() {
+	this.cancel()
+
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 

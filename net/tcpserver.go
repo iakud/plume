@@ -13,9 +13,7 @@ var (
 )
 
 type TCPServer struct {
-	addr    string
-	handler TCPHandler
-	codec   Codec
+	addr string
 
 	mutex       sync.Mutex
 	listener    *net.TCPListener
@@ -23,11 +21,9 @@ type TCPServer struct {
 	closed      bool
 }
 
-func NewTCPServer(addr string, handler TCPHandler, codec Codec) *TCPServer {
+func NewTCPServer(addr string) *TCPServer {
 	server := &TCPServer{
-		addr:    addr,
-		handler: handler,
-		codec:   codec,
+		addr: addr,
 	}
 	return server
 }
@@ -43,7 +39,7 @@ func listenTCP(addr string) (*net.TCPListener, error) {
 	return net.ListenTCP("tcp", laddr)
 }
 
-func (this *TCPServer) ListenAndServe() error {
+func (this *TCPServer) ListenAndServe(handler TCPHandler, codec Codec) error {
 	if this.isClosed() {
 		return ErrServerClosed
 	}
@@ -51,21 +47,19 @@ func (this *TCPServer) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
-	return this.serve(ln)
+	return this.serve(ln, handler, codec)
 }
 
-func (this *TCPServer) serve(ln *net.TCPListener) error {
+func (this *TCPServer) serve(ln *net.TCPListener, handler TCPHandler, codec Codec) error {
 	defer ln.Close()
 
 	if err := this.newListener(ln); err != nil {
 		return err
 	}
 
-	handler := this.handler
 	if handler == nil {
 		handler = DefaultTCPHandler
 	}
-	codec := this.codec
 	if codec == nil {
 		codec = DefaultCodec
 	}

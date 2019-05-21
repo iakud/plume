@@ -10,13 +10,14 @@ type EchoServer struct {
 }
 
 func NewEchoServer(addr string) *EchoServer {
-	echoServer := &EchoServer{}
-	echoServer.server = NewTCPServer(addr, echoServer, nil)
+	echoServer := &EchoServer{
+		server: NewTCPServer(addr),
+	}
 	return echoServer
 }
 
 func (this *EchoServer) ListenAndServe() {
-	if err := this.server.ListenAndServe(); err != nil {
+	if err := this.server.ListenAndServe(this, nil); err != nil {
 		log.Println(err)
 	}
 }
@@ -47,13 +48,14 @@ type EchoClient struct {
 }
 
 func NewEchoClient(addr string) *EchoClient {
-	echoClient := &EchoClient{}
-	echoClient.client = NewTCPClient(addr, echoClient, nil)
+	echoClient := &EchoClient{
+		client: NewTCPClient(addr),
+	}
 	return echoClient
 }
 
 func (this *EchoClient) ConnectAndServe() {
-	if err := this.client.ConnectAndServe(); err != nil {
+	if err := this.client.DialAndServe(this, nil); err != nil {
 		log.Println(err)
 	}
 }
