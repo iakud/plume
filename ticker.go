@@ -7,11 +7,11 @@ import (
 type Ticker struct {
 	loop *EventLoop
 	t    *time.Ticker
-	f    func()
+	f    func(time.Time)
 	done chan struct{}
 }
 
-func NewTicker(loop *EventLoop, d time.Duration, f func()) *Ticker {
+func newTicker(loop *EventLoop, d time.Duration, f func(time.Time)) *Ticker {
 	t := time.NewTicker(d)
 	ticker := &Ticker{
 		loop: loop,
@@ -19,15 +19,17 @@ func NewTicker(loop *EventLoop, d time.Duration, f func()) *Ticker {
 		f:    f,
 		done: make(chan struct{}),
 	}
-	go ticker.serve()
+	go ticker.receiveTime()
 	return ticker
 }
 
-func (this *Ticker) serve() {
+func (this *Ticker) receiveTime() {
 	for {
 		select {
-		case _ = <-this.t.C:
-			this.onTicker()
+		case now := <-this.t.C:
+			this.loop.RunInLoop(func() {
+				this.f(now)
+			})
 		case <-this.done:
 			return
 		}
@@ -35,28 +37,10 @@ func (this *Ticker) serve() {
 }
 
 func (this *Ticker) Stop() {
-	this.t.Stop()
 	select {
 	case <-this.done:
 	default:
 		close(this.done)
-	}
-}
-
-func (this *Ticker) onTicker() {
-	ch := make(chan struct{})
-	if this.loop == nil {
-		close(ch)
-		this.f()
-	} else {
-		this.loop.RunInLoop(func() {
-			close(ch)
-			this.f()
-		})
-	}
-	select {
-	case <-ch:
-	case <-this.done:
-		return
+		this.t.Stop()
 	}
 }

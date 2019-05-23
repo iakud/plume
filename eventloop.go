@@ -2,6 +2,7 @@ package falcon
 
 import (
 	"sync"
+	"time"
 )
 
 type EventLoop struct {
@@ -45,6 +46,14 @@ func (this *EventLoop) RunInLoop(functor func()) {
 	this.mutex.Unlock()
 
 	this.cond.Signal()
+}
+
+func (this *EventLoop) RunAfter(d time.Duration, f func(time.Time)) *Timer {
+	return newTimer(this, d, f)
+}
+
+func (this *EventLoop) RunEvery(d time.Duration, f func(time.Time)) *Ticker {
+	return newTicker(this, d, f)
 }
 
 func (this *EventLoop) Close() {

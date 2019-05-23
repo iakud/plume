@@ -4,22 +4,14 @@ import (
 	"time"
 )
 
-type eventTimer struct {
-	t *Timer
-}
-
-func (this *eventTimer) Run() {
-	this.t.f()
-}
-
 type Timer struct {
 	loop *EventLoop
 	t    *time.Timer
-	f    func()
+	f    func(time.Time)
 	done chan struct{}
 }
 
-func NewTimer(loop *EventLoop, d time.Duration, f func()) *Timer {
+func newTimer(loop *EventLoop, d time.Duration, f func(time.Time)) *Timer {
 	t := time.NewTimer(d)
 	timer := &Timer{
 		loop: loop,
@@ -27,31 +19,24 @@ func NewTimer(loop *EventLoop, d time.Duration, f func()) *Timer {
 		f:    f,
 		done: make(chan struct{}),
 	}
-	go timer.serve()
+	go timer.receiveTime()
 	return timer
 }
 
-func (this *Timer) serve() {
+func (this *Timer) receiveTime() {
 	select {
-	case <-this.t.C:
-		this.onTimer()
+	case now := <-this.t.C:
+		this.loop.RunInLoop(func() {
+			this.f(now)
+		})
 	case <-this.done:
 	}
 }
 
-func (this *Timer) Stop() {
-	this.t.Stop()
-	select {
-	case <-this.done:
-	default:
+func (this *Timer) Stop() bool {
+	if this.t.Stop() {
 		close(this.done)
+		return true
 	}
-}
-
-func (this *Timer) onTimer() {
-	if this.loop == nil {
-		this.f()
-	} else {
-		this.loop.RunInLoop(func() { this.f() })
-	}
+	return false
 }
