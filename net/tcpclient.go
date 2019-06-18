@@ -1,7 +1,6 @@
 package net
 
 import (
-	"context"
 	"errors"
 	"log"
 	"net"
@@ -14,9 +13,8 @@ var (
 )
 
 type TCPClient struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	addr   string
+	addr  string
+	retry bool
 
 	mutex      sync.Mutex
 	connection *TCPConnection
@@ -24,27 +22,22 @@ type TCPClient struct {
 }
 
 func NewTCPClient(addr string) *TCPClient {
-	ctx, cancel := context.WithCancel(context.Background())
 	client := &TCPClient{
-		ctx:    ctx,
-		cancel: cancel,
-		addr:   addr,
+		addr:  addr,
+		retry: false,
 	}
 	return client
 }
 
-func dialTCPContext(ctx context.Context, addr string) (*net.TCPConn, error) {
-	var dialer net.Dialer
-	c, err := dialer.DialContext(ctx, "tcp", addr)
+func (this *TCPClient) EnableRetry()  { this.retry = true }
+func (this *TCPClient) DisableRetry() { this.retry = false }
+
+func dialTCP(addr string) (*net.TCPConn, error) {
+	raddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
-	conn, ok := c.(*net.TCPConn)
-	if !ok {
-		c.Close() // close
-		return nil, errors.New("unexpected type")
-	}
-	return conn, nil
+	return net.DialTCP("tcp", nil, raddr)
 }
 
 func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
@@ -61,10 +54,13 @@ func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
 
 	var tempDelay time.Duration // how long to sleep on connect failure
 	for {
-		conn, err := dialTCPContext(this.ctx, this.addr)
+		conn, err := dialTCP(this.addr)
 		if err != nil {
 			if this.isClosed() {
 				return ErrClientClosed
+			}
+			if !this.retry {
+				return err
 			}
 
 			if tempDelay == 0 {
@@ -75,7 +71,7 @@ func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
 			if max := 1 * time.Minute; tempDelay > max {
 				tempDelay = max
 			}
-			log.Printf("TCPClient: connect error: %v; retrying in %v", err, tempDelay)
+			log.Printf("TCPClient: dial error: %v; retrying in %v", err, tempDelay)
 			time.Sleep(tempDelay)
 			continue
 		}
@@ -133,8 +129,6 @@ func (this *TCPClient) GetConnection() *TCPConnection {
 }
 
 func (this *TCPClient) Close() {
-	this.cancel()
-
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 

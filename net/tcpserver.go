@@ -47,10 +47,7 @@ func (this *TCPServer) ListenAndServe(handler TCPHandler, codec Codec) error {
 	if err != nil {
 		return err
 	}
-	return this.serve(ln, handler, codec)
-}
 
-func (this *TCPServer) serve(ln *net.TCPListener, handler TCPHandler, codec Codec) error {
 	defer ln.Close()
 
 	if err := this.newListener(ln); err != nil {

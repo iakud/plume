@@ -55,6 +55,7 @@ func NewEchoClient(addr string) *EchoClient {
 }
 
 func (this *EchoClient) ConnectAndServe() {
+	this.client.EnableRetry() // 启用retry
 	if err := this.client.DialAndServe(this, nil); err != nil {
 		log.Println(err)
 	}
