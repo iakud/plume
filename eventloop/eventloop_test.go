@@ -1,4 +1,4 @@
-package falcon
+package eventloop
 
 import (
 	"fmt"
@@ -41,12 +41,13 @@ func TestTicker(t *testing.T) {
 		if times == 3 {
 			ticker.Stop()
 			ticker = loop.RunEvery(time.Second, func(t time.Time) {
-				times--
-				fmt.Println("on ticker", times)
 				if times == 0 {
 					ticker.Stop()
 					loop.Close()
+					return
 				}
+				fmt.Println("on ticker", times)
+				times--
 			})
 		}
 	})

@@ -1,4 +1,4 @@
-package falcon
+package eventloop
 
 import (
 	"time"
