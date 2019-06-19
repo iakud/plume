@@ -27,16 +27,17 @@ func (this *EchoServer) Close() {
 }
 
 func (this *EchoServer) Connect(connection *TCPConnection) {
-	log.Println("echo server: connected.")
+	log.Printf("echo server: %v connected.\n", connection.RemoteAddr())
 }
 
 func (this *EchoServer) Disconnect(connection *TCPConnection) {
-	log.Println("echo server: disconnected.")
+	log.Printf("echo server: %v disconnected.\n", connection.RemoteAddr())
 }
 
 func (this *EchoServer) Receive(connection *TCPConnection, b []byte) {
 	message := string(b)
-	log.Println("echo server: receive", message)
+	log.Printf("echo server: %v receive %v\n", connection.RemoteAddr(), message)
+	log.Println("echo server: send", Message)
 	connection.Send(b)
 	connection.Shutdown()
 }
@@ -62,18 +63,18 @@ func (this *EchoClient) ConnectAndServe() {
 }
 
 func (this *EchoClient) Connect(connection *TCPConnection) {
-	log.Println("echo client: connected.")
+	log.Printf("echo client: %v connected.\n", connection.RemoteAddr())
 	log.Println("echo client: send", Message)
 	connection.Send([]byte(Message))
 }
 
 func (this *EchoClient) Disconnect(connection *TCPConnection) {
-	log.Println("echo client: disconnected.")
+	log.Printf("echo client: %v disconnected.\n", connection.RemoteAddr())
 	this.client.Close()
 }
 
 func (this *EchoClient) Receive(connection *TCPConnection, b []byte) {
-	log.Println("echo client: receive", string(b))
+	log.Printf("echo client: %v receive %v\n", connection.RemoteAddr(), string(b))
 }
 
 func TestEcho(t *testing.T) {

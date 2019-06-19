@@ -113,6 +113,14 @@ func (this *TCPConnection) closeSend() {
 	this.closed = true
 }
 
+func (this *TCPConnection) LocalAddr() net.Addr {
+	return this.conn.LocalAddr()
+}
+
+func (this *TCPConnection) RemoteAddr() net.Addr {
+	return this.conn.RemoteAddr()
+}
+
 func (this *TCPConnection) Send(b []byte) {
 	this.mutex.Lock()
 	if this.closed {
