@@ -77,12 +77,12 @@ func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
 		}
 		tempDelay = 0
 
-		connection := newTCPConnection(conn, handler, codec)
+		connection := newTCPConnection(conn)
 		if err := this.newConnection(connection); err != nil {
 			connection.close()
 			return err
 		}
-		if err := this.serveConnection(connection); err != nil {
+		if err := this.serveConnection(connection, handler, codec); err != nil {
 			return err
 		}
 	}
@@ -105,8 +105,8 @@ func (this *TCPClient) newConnection(connection *TCPConnection) error {
 	return nil
 }
 
-func (this *TCPClient) serveConnection(connection *TCPConnection) error {
-	connection.serve()
+func (this *TCPClient) serveConnection(connection *TCPConnection, handler TCPHandler, codec Codec) error {
+	connection.serve(handler, codec)
 	// remove connection
 	this.mutex.Lock()
 	defer this.mutex.Unlock()

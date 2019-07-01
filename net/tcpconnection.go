@@ -2,15 +2,14 @@ package net
 
 import (
 	"bufio"
+	"log"
 	"net"
+	"runtime"
 	"sync"
 )
 
 type TCPConnection struct {
 	conn *net.TCPConn
-
-	handler TCPHandler
-	codec   Codec
 
 	bufs   [][]byte
 	mutex  sync.Mutex
@@ -20,11 +19,9 @@ type TCPConnection struct {
 	Userdata interface{}
 }
 
-func newTCPConnection(conn *net.TCPConn, handler TCPHandler, codec Codec) *TCPConnection {
+func newTCPConnection(conn *net.TCPConn) *TCPConnection {
 	connection := &TCPConnection{
-		conn:    conn,
-		handler: handler,
-		codec:   codec,
+		conn: conn,
 	}
 	connection.cond = sync.NewCond(&connection.mutex)
 	conn.SetNoDelay(true) // no delay
@@ -32,41 +29,56 @@ func newTCPConnection(conn *net.TCPConn, handler TCPHandler, codec Codec) *TCPCo
 	return connection
 }
 
-func (this *TCPConnection) serve() {
-	this.startBackgroundWrite()
+func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
+	defer func() {
+		if err := recover(); err != nil {
+			const size = 64 << 10
+			buf := make([]byte, size)
+			buf = buf[:runtime.Stack(buf, false)]
+			log.Printf("net: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
+		}
+		this.conn.Close()
+	}()
+
+	this.startBackgroundWrite(codec)
 	defer this.stopBackgroundWrite()
 
-	this.handler.Connect(this)
-	this.loopRead() // loop read
-	this.handler.Disconnect(this)
-}
+	handler.Connect(this)
+	defer handler.Disconnect(this)
 
-func (this *TCPConnection) loopRead() {
-	defer this.conn.Close()
-
+	// loop read
 	r := bufio.NewReader(this.conn)
 	for {
-		b, err := this.codec.Read(r)
+		b, err := codec.Read(r)
 		if err != nil {
 			return
 		}
-		this.handler.Receive(this, b)
+		handler.Receive(this, b)
 	}
 }
 
-func (this *TCPConnection) startBackgroundWrite() {
+func (this *TCPConnection) startBackgroundWrite(codec Codec) {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 
 	if this.closed {
 		return
 	}
-	go this.backgroundWrite()
+	go this.backgroundWrite(codec)
 }
 
-func (this *TCPConnection) backgroundWrite() {
-	defer this.conn.Close()
+func (this *TCPConnection) backgroundWrite(codec Codec) {
+	defer func() {
+		if err := recover(); err != nil {
+			const size = 64 << 10
+			buf := make([]byte, size)
+			buf = buf[:runtime.Stack(buf, false)]
+			log.Printf("net: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
+		}
+		this.conn.Close()
+	}()
 
+	// loop write
 	w := bufio.NewWriter(this.conn)
 	for closed := false; !closed; {
 		var bufs [][]byte
@@ -80,7 +92,7 @@ func (this *TCPConnection) backgroundWrite() {
 		this.mutex.Unlock()
 
 		for _, b := range bufs {
-			if err := this.codec.Write(w, b); err != nil {
+			if err := codec.Write(w, b); err != nil {
 				this.closeSend()
 				return
 			}

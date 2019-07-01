@@ -86,12 +86,12 @@ func (this *TCPServer) ListenAndServe(handler TCPHandler, codec Codec) error {
 		}
 		tempDelay = 0
 
-		connection := newTCPConnection(conn, handler, codec)
+		connection := newTCPConnection(conn)
 		if err := this.newConnection(connection); err != nil {
 			connection.close() // close
 			return err
 		}
-		go this.serveConnection(connection)
+		go this.serveConnection(connection, handler, codec)
 	}
 }
 
@@ -125,8 +125,8 @@ func (this *TCPServer) newConnection(connection *TCPConnection) error {
 	return nil
 }
 
-func (this *TCPServer) serveConnection(connection *TCPConnection) {
-	connection.serve()
+func (this *TCPServer) serveConnection(connection *TCPConnection, handler TCPHandler, codec Codec) {
+	connection.serve(handler, codec)
 	// remove connection
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
