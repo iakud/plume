@@ -1,41 +1,40 @@
 package eventloop
 
 import (
+	"context"
 	"time"
 )
 
 type Timer struct {
-	loop *EventLoop
-	t    *time.Timer
-	f    func(time.Time)
-	done chan struct{}
+	loop   *EventLoop
+	timer  *time.Timer
+	f      func()
+	cancel context.CancelFunc
 }
 
-func newTimer(loop *EventLoop, d time.Duration, f func(time.Time)) *Timer {
-	t := time.NewTimer(d)
+func newTimer(loop *EventLoop, d time.Duration, f func()) *Timer {
+	ctx, cancel := context.WithCancel(context.Background())
 	timer := &Timer{
-		loop: loop,
-		t:    t,
-		f:    f,
-		done: make(chan struct{}),
+		loop:   loop,
+		timer:  time.NewTimer(d),
+		f:      f,
+		cancel: cancel,
 	}
-	go timer.receiveTime()
+	go timer.receiveTime(ctx, timer.timer)
 	return timer
 }
 
-func (this *Timer) receiveTime() {
+func (this *Timer) receiveTime(ctx context.Context, timer *time.Timer) {
 	select {
-	case now := <-this.t.C:
-		this.loop.RunInLoop(func() {
-			this.f(now)
-		})
-	case <-this.done:
+	case <-timer.C:
+		this.loop.RunInLoop(this.f)
+	case <-ctx.Done():
 	}
 }
 
 func (this *Timer) Stop() bool {
-	if this.t.Stop() {
-		close(this.done)
+	if this.timer.Stop() {
+		this.cancel()
 		return true
 	}
 	return false

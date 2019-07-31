@@ -17,13 +17,13 @@ func TestEventLoop(t *testing.T) {
 
 func TestTimer(t *testing.T) {
 	loop := NewEventLoop()
-	loop.RunAfter(time.Second, func(t time.Time) {
+	loop.RunAfter(time.Second, func() {
 		fmt.Println("on timer")
-		timer := loop.RunAfter(time.Second, func(t time.Time) {
+		timer := loop.RunAfter(time.Second, func() {
 			fmt.Println("on timer stop")
 		})
 		timer.Stop()
-		loop.RunAfter(time.Second*2, func(t time.Time) {
+		loop.RunAfter(time.Second*2, func() {
 			fmt.Println("on timer close")
 			loop.Close()
 		})
@@ -35,12 +35,12 @@ func TestTicker(t *testing.T) {
 	loop := NewEventLoop()
 	times := 0
 	var ticker *Ticker
-	ticker = loop.RunEvery(time.Second, func(t time.Time) {
+	ticker = loop.RunEvery(time.Second, func() {
 		times++
 		fmt.Println("on ticker", times)
 		if times == 3 {
 			ticker.Stop()
-			ticker = loop.RunEvery(time.Second, func(t time.Time) {
+			ticker = loop.RunEvery(time.Second, func() {
 				if times == 0 {
 					ticker.Stop()
 					loop.Close()

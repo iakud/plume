@@ -1,46 +1,41 @@
 package eventloop
 
 import (
+	"context"
 	"time"
 )
 
 type Ticker struct {
-	loop *EventLoop
-	t    *time.Ticker
-	f    func(time.Time)
-	done chan struct{}
+	loop   *EventLoop
+	ticker *time.Ticker
+	f      func()
+	cancel context.CancelFunc
 }
 
-func newTicker(loop *EventLoop, d time.Duration, f func(time.Time)) *Ticker {
-	t := time.NewTicker(d)
+func newTicker(loop *EventLoop, d time.Duration, f func()) *Ticker {
+	ctx, cancel := context.WithCancel(context.Background())
 	ticker := &Ticker{
-		loop: loop,
-		t:    t,
-		f:    f,
-		done: make(chan struct{}),
+		loop:   loop,
+		ticker: time.NewTicker(d),
+		f:      f,
+		cancel: cancel,
 	}
-	go ticker.receiveTime()
+	go ticker.receiveTime(ctx, ticker.ticker)
 	return ticker
 }
 
-func (this *Ticker) receiveTime() {
+func (this *Ticker) receiveTime(ctx context.Context, ticker *time.Ticker) {
 	for {
 		select {
-		case now := <-this.t.C:
-			this.loop.RunInLoop(func() {
-				this.f(now)
-			})
-		case <-this.done:
+		case <-ticker.C:
+			this.loop.RunInLoop(this.f)
+		case <-ctx.Done():
 			return
 		}
 	}
 }
 
 func (this *Ticker) Stop() {
-	select {
-	case <-this.done:
-	default:
-		close(this.done)
-		this.t.Stop()
-	}
+	this.ticker.Stop()
+	this.cancel()
 }

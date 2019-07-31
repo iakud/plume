@@ -48,11 +48,11 @@ func (this *EventLoop) RunInLoop(functor func()) {
 	this.cond.Signal()
 }
 
-func (this *EventLoop) RunAfter(d time.Duration, f func(time.Time)) *Timer {
+func (this *EventLoop) RunAfter(d time.Duration, f func()) *Timer {
 	return newTimer(this, d, f)
 }
 
-func (this *EventLoop) RunEvery(d time.Duration, f func(time.Time)) *Ticker {
+func (this *EventLoop) RunEvery(d time.Duration, f func()) *Ticker {
 	return newTicker(this, d, f)
 }
 
