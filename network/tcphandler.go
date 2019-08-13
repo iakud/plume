@@ -1,4 +1,4 @@
-package net
+package network
 
 type TCPHandler interface {
 	Connect(*TCPConnection)

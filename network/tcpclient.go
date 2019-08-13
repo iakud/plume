@@ -1,4 +1,4 @@
-package net
+package network
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrClientClosed = errors.New("net: Client closed")
+	ErrClientClosed = errors.New("network: Client closed")
 )
 
 type TCPClient struct {
@@ -71,7 +71,7 @@ func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
 			if max := 1 * time.Minute; tempDelay > max {
 				tempDelay = max
 			}
-			log.Printf("TCPClient: dial error: %v; retrying in %v", err, tempDelay)
+			log.Printf("network: TCPClient dial error: %v; retrying in %v", err, tempDelay)
 			time.Sleep(tempDelay)
 			continue
 		}

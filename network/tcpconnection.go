@@ -1,4 +1,4 @@
-package net
+package network
 
 import (
 	"bufio"
@@ -35,7 +35,7 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("net: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
+			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
 		}
 		this.conn.Close()
 	}()
@@ -73,7 +73,7 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("net: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
+			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
 		}
 		this.conn.Close()
 	}()

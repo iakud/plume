@@ -1,4 +1,4 @@
-package net
+package network
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrServerClosed = errors.New("net: Server closed")
+	ErrServerClosed = errors.New("network: Server closed")
 )
 
 type TCPServer struct {
@@ -77,11 +77,11 @@ func (this *TCPServer) ListenAndServe(handler TCPHandler, codec Codec) error {
 				if max := 1 * time.Second; tempDelay > max {
 					tempDelay = max
 				}
-				log.Printf("TCPServer: accept error: %v; retrying in %v", err, tempDelay)
+				log.Printf("network: TCPServer accept error: %v; retrying in %v", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}
-			log.Printf("TCPServer: error: %v", err)
+			log.Printf("network: TCPServer error: %v", err)
 			return err
 		}
 		tempDelay = 0
