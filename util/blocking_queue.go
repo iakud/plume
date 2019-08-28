@@ -1,42 +1,35 @@
 package util
 
 import (
-	"container/list"
 	"sync"
 )
 
 type BlockingQueue struct {
-	mu     sync.Mutex
-	cond   *sync.Cond
-	list   *list.List
-	inWait int
+	mu    sync.Mutex
+	cond  *sync.Cond
+	queue []interface{}
 }
 
 func NewBlockingQueue() *BlockingQueue {
 	bq := &BlockingQueue{}
 	bq.cond = sync.NewCond(&bq.mu)
-	bq.list = list.New()
 	return bq
 }
 
 func (this *BlockingQueue) Put(v interface{}) {
 	this.mu.Lock()
-	this.list.PushBack(v)
-	inWait := this.inWait
+	this.queue = append(this.queue, v)
 	this.mu.Unlock()
-	if inWait > 0 {
-		this.cond.Signal() // 有Wait才Signal
-	}
+	this.cond.Signal()
 }
 
 func (this *BlockingQueue) Take() interface{} {
 	this.mu.Lock()
-	for this.list.Len() == 0 {
-		this.inWait++
+	for len(this.queue) == 0 {
 		this.cond.Wait()
-		this.inWait--
 	}
-	v := this.list.Remove(this.list.Front())
+	v := this.queue[0]
+	this.queue = this.queue[1:]
 	this.mu.Unlock()
 	return v
 }

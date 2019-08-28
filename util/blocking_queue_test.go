@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-const MSG_COUNT int = 5000000
+const MSG_COUNT int = 10000000
 const GO_NUM int = 3
 
 func bqPut(bq *BlockingQueue) {
@@ -13,7 +13,7 @@ func bqPut(bq *BlockingQueue) {
 	}
 }
 
-func TestBq(t *testing.T) {
+func TestBlockQueue(t *testing.T) {
 	bq := NewBlockingQueue()
 	for i := 0; i < GO_NUM; i++ {
 		go bqPut(bq)
@@ -28,16 +28,16 @@ func TestBq(t *testing.T) {
 	}
 }
 
-func writeChan(ch chan interface{}) {
+func sendToChan(ch chan interface{}) {
 	for i := 0; i < MSG_COUNT; i++ {
 		ch <- i
 	}
 }
 
 func TestChan(t *testing.T) {
-	ch := make(chan interface{}, 128)
+	ch := make(chan interface{}, 1024)
 	for i := 0; i < GO_NUM; i++ {
-		go writeChan(ch)
+		go sendToChan(ch)
 	}
 	times := 0
 	for {
