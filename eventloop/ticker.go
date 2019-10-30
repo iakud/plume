@@ -6,18 +6,17 @@ import (
 )
 
 type Ticker struct {
-	t      *time.Ticker
 	cancel context.CancelFunc
 }
 
 func newTicker(loop *EventLoop, d time.Duration, f func()) *Ticker {
 	ctx, cancel := context.WithCancel(context.Background())
-	t := time.NewTicker(d)
 	ticker := &Ticker{
-		t:      t,
 		cancel: cancel,
 	}
 	go func() {
+		t := time.NewTicker(d)
+		defer t.Stop()
 		for {
 			select {
 			case <-t.C:
@@ -31,6 +30,5 @@ func newTicker(loop *EventLoop, d time.Duration, f func()) *Ticker {
 }
 
 func (this *Ticker) Stop() {
-	this.t.Stop()
 	this.cancel()
 }

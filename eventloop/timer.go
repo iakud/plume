@@ -5,22 +5,13 @@ import (
 )
 
 type Timer struct {
-	t *time.Timer
+	*time.Timer
 }
 
 func newTimer(loop *EventLoop, d time.Duration, f func()) *Timer {
-	timer := &Timer{
-		t: time.AfterFunc(d, func() {
-			loop.RunInLoop(f)
-		}),
-	}
+	t := time.AfterFunc(d, func() {
+		loop.RunInLoop(f)
+	})
+	timer := &Timer{t}
 	return timer
-}
-
-func (this *Timer) Reset(d time.Duration) bool {
-	return this.t.Reset(d)
-}
-
-func (this *Timer) Stop() bool {
-	return this.t.Stop()
 }
