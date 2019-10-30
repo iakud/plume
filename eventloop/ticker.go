@@ -6,36 +6,31 @@ import (
 )
 
 type Ticker struct {
-	loop   *EventLoop
-	ticker *time.Ticker
-	f      func()
+	t      *time.Ticker
 	cancel context.CancelFunc
 }
 
 func newTicker(loop *EventLoop, d time.Duration, f func()) *Ticker {
 	ctx, cancel := context.WithCancel(context.Background())
+	t := time.NewTicker(d)
 	ticker := &Ticker{
-		loop:   loop,
-		ticker: time.NewTicker(d),
-		f:      f,
+		t:      t,
 		cancel: cancel,
 	}
-	go ticker.receiveTime(ctx, ticker.ticker)
+	go func() {
+		for {
+			select {
+			case <-t.C:
+				loop.RunInLoop(f)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 	return ticker
 }
 
-func (this *Ticker) receiveTime(ctx context.Context, ticker *time.Ticker) {
-	for {
-		select {
-		case <-ticker.C:
-			this.loop.RunInLoop(this.f)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 func (this *Ticker) Stop() {
-	this.ticker.Stop()
+	this.t.Stop()
 	this.cancel()
 }
