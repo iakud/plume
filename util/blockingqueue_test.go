@@ -4,8 +4,8 @@ import (
 	"testing"
 )
 
-const MSG_COUNT int = 10000000
-const GO_NUM int = 3
+const MSG_COUNT int = 5000000
+const GO_NUM int = 2
 
 func bqPut(bq *BlockingQueue) {
 	for i := 0; i < MSG_COUNT; i++ {
