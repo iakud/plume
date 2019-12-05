@@ -40,12 +40,11 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 		this.conn.Close()
 	}()
 
+	handler.Connect(this, true)
+	defer handler.Connect(this, false)
+	// start write
 	this.startBackgroundWrite(codec)
 	defer this.stopBackgroundWrite()
-
-	handler.Connect(this)
-	defer handler.Disconnect(this)
-
 	// loop read
 	r := bufio.NewReader(this.conn)
 	for {

@@ -26,12 +26,12 @@ func (this *EchoServer) Close() {
 	this.server.Close()
 }
 
-func (this *EchoServer) Connect(connection *TCPConnection) {
-	log.Printf("echo server: %v connected.\n", connection.RemoteAddr())
-}
-
-func (this *EchoServer) Disconnect(connection *TCPConnection) {
-	log.Printf("echo server: %v disconnected.\n", connection.RemoteAddr())
+func (this *EchoServer) Connect(connection *TCPConnection, connected bool) {
+	if connected {
+		log.Printf("echo server: %v connected.\n", connection.RemoteAddr())
+	} else {
+		log.Printf("echo server: %v disconnected.\n", connection.RemoteAddr())
+	}
 }
 
 func (this *EchoServer) Receive(connection *TCPConnection, b []byte) {
@@ -62,15 +62,15 @@ func (this *EchoClient) ConnectAndServe() {
 	}
 }
 
-func (this *EchoClient) Connect(connection *TCPConnection) {
-	log.Printf("echo client: %v connected.\n", connection.RemoteAddr())
-	log.Println("echo client: send", Message)
-	connection.Send([]byte(Message))
-}
-
-func (this *EchoClient) Disconnect(connection *TCPConnection) {
-	log.Printf("echo client: %v disconnected.\n", connection.RemoteAddr())
-	this.client.Close()
+func (this *EchoClient) Connect(connection *TCPConnection, connected bool) {
+	if connected {
+		log.Printf("echo client: %v connected.\n", connection.RemoteAddr())
+		log.Println("echo client: send", Message)
+		connection.Send([]byte(Message))
+	} else {
+		log.Printf("echo client: %v disconnected.\n", connection.RemoteAddr())
+		this.client.Close()
+	}
 }
 
 func (this *EchoClient) Receive(connection *TCPConnection, b []byte) {

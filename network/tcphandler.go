@@ -1,19 +1,14 @@
 package network
 
 type TCPHandler interface {
-	Connect(*TCPConnection)
-	Disconnect(*TCPConnection)
-	Receive(*TCPConnection, []byte)
+	Connect(conn *TCPConnection, connected bool)
+	Receive(conn *TCPConnection, buf []byte)
 }
 
 type defaultTCPHandler struct {
 }
 
-func (*defaultTCPHandler) Connect(*TCPConnection) {
-
-}
-
-func (*defaultTCPHandler) Disconnect(*TCPConnection) {
+func (*defaultTCPHandler) Connect(*TCPConnection, bool) {
 
 }
 
