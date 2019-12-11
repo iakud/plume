@@ -1,16 +1,19 @@
 package eventloop
 
 import (
+	"log"
+	"runtime"
 	"sync"
 	"time"
 )
 
 type EventLoop struct {
-	functors []func()
+	Context interface{}
 
-	mutex  sync.Mutex
-	cond   *sync.Cond
-	closed bool
+	mutex    sync.Mutex
+	cond     *sync.Cond
+	functors []func()
+	closed   bool
 }
 
 func NewEventLoop() *EventLoop {
@@ -20,9 +23,17 @@ func NewEventLoop() *EventLoop {
 }
 
 func (this *EventLoop) Loop() {
-	for {
+	defer func() {
+		if err := recover(); err != nil {
+			const size = 64 << 10
+			buf := make([]byte, size)
+			buf = buf[:runtime.Stack(buf, false)]
+			log.Printf("util: panic worker: %v\n%s", err, buf)
+		}
+	}()
+	var closed bool
+	for !closed {
 		var functors []func()
-		var closed bool
 		this.mutex.Lock()
 		for !this.closed && len(this.functors) == 0 {
 			this.cond.Wait()
@@ -33,9 +44,6 @@ func (this *EventLoop) Loop() {
 
 		for _, functor := range functors {
 			functor()
-		}
-		if closed {
-			return
 		}
 	}
 }
