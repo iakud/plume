@@ -28,7 +28,7 @@ func (this *EventLoop) Loop() {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("util: panic worker: %v\n%s", err, buf)
+			log.Printf("eventloop: panic loop: %v\n%s", err, buf)
 		}
 	}()
 	var closed bool
