@@ -2,19 +2,23 @@ package util
 
 import (
 	"fmt"
-	"math/rand"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
+var workerId int32 = 0
+
+func workerInit(worker *Worker) {
+	id := atomic.AddInt32(&workerId, 1)
+	name := fmt.Sprintf("worker%d", id)
+	worker.Context = name
+	fmt.Printf("init: %s\n", name)
+}
+
 func TestWorkerPool(t *testing.T) {
-	workerPool := NewWorkerPool(0, func(worker *Worker) {
-		name := fmt.Sprintf("worker%d", rand.Intn(100))
-		fmt.Printf("%s init\n", name)
-		worker.Context = name
-	})
-	workerPool.Start(3)
+	workerPool := NewWorkerPool(3, WorkerPoolSizeInfinite, workerInit)
 	for i := 0; i < 100; i++ {
 		buf := fmt.Sprintf("task %d", i)
 		workerPool.Run(func(worker *Worker) {
@@ -29,5 +33,5 @@ func TestWorkerPool(t *testing.T) {
 		wg.Done()
 	})
 	wg.Wait()
-	workerPool.Stop()
+	workerPool.Close()
 }

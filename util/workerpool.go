@@ -27,47 +27,42 @@ func (this *Worker) join() {
 	<-this.ctx.Done()
 }
 
+const WorkerPoolSizeInfinite = 0
+
 type WorkerPool struct {
+	workers  []*Worker
 	maxSize  int
 	initFunc func(*Worker)
 
 	mutex    sync.Mutex
 	notFull  *sync.Cond
 	notEmpty *sync.Cond
-	running  bool
-	workers  []*Worker
+	closed   bool
 	queue    []func(*Worker)
 }
 
-func NewWorkerPool(maxSize int, initFunc func(*Worker)) *WorkerPool {
+func NewWorkerPool(numWorkers int, maxSize int, initFunc func(*Worker)) *WorkerPool {
 	pool := &WorkerPool{
 		maxSize:  maxSize,
 		initFunc: initFunc,
-		running:  false,
 	}
+	var workers []*Worker
+	for i := 0; i < numWorkers; i++ {
+		worker := newWorker(pool.workerRoutine)
+		workers = append(workers, worker)
+	}
+	pool.workers = workers
 	pool.notFull = sync.NewCond(&pool.mutex)
 	pool.notEmpty = sync.NewCond(&pool.mutex)
 	return pool
 }
 
-func (this *WorkerPool) Start(numWorkers int) {
+func (this *WorkerPool) Close() {
 	this.mutex.Lock()
-	if this.running {
+	if this.closed {
 		return
 	}
-	this.running = true
-	var workers []*Worker
-	for i := 0; i < numWorkers; i++ {
-		worker := newWorker(this.workerRoutine)
-		workers = append(workers, worker)
-	}
-	this.workers = workers
-	this.mutex.Unlock()
-}
-
-func (this *WorkerPool) Stop() {
-	this.mutex.Lock()
-	this.running = false
+	this.closed = true
 	this.notEmpty.Broadcast()
 	workers := this.workers
 	this.workers = nil
@@ -99,10 +94,10 @@ func (this *WorkerPool) workerRoutine(worker *Worker) {
 	if initFunc := this.initFunc; initFunc != nil {
 		initFunc(worker)
 	}
-	var running bool = true
-	for running {
+	var closed bool
+	for !closed {
 		this.mutex.Lock()
-		for this.running && len(this.queue) == 0 {
+		for !this.closed && len(this.queue) == 0 {
 			this.notEmpty.Wait()
 		}
 		var task func(*Worker)
@@ -112,7 +107,7 @@ func (this *WorkerPool) workerRoutine(worker *Worker) {
 			this.queue = this.queue[1:]
 			notFull = this.maxSize > 0
 		}
-		running = this.running
+		closed = this.closed
 		this.mutex.Unlock()
 		if notFull {
 			this.notFull.Signal()
