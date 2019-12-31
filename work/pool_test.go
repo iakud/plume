@@ -1,4 +1,4 @@
-package worker
+package work
 
 import (
 	"context"
@@ -23,26 +23,17 @@ func fromWorkerNameContext(ctx context.Context) (string, bool) {
 	return name, ok
 }
 
-type poolWorker struct {
-}
-
-func (this *poolWorker) WorkerContext(ctx context.Context, worker *Worker) context.Context {
+func runnerInt(ctx context.Context, handler RunnerHandler) {
 	id := atomic.AddInt32(&workerId, 1)
 	name := fmt.Sprintf("worker%d", id)
-	fmt.Printf("worker name: %s\n", name)
-	return newWorkerNameContext(ctx, name)
-}
-
-func (this *poolWorker) WorkerExit(ctx context.Context, worker *Worker) {
-	name, ok := fromWorkerNameContext(ctx)
-	if !ok {
-		return
-	}
-	fmt.Printf("%s exit\n", name)
+	fmt.Printf("%s init\n", name)
+	ctx = newWorkerNameContext(ctx, name)
+	defer fmt.Printf("%s exit\n", name)
+	handler(ctx)
 }
 
 func TestPool(t *testing.T) {
-	pool := NewPool(3, PoolSizeInfinite, &poolWorker{})
+	pool := NewPool(3, PoolSizeInfinite, runnerInt)
 	time.Sleep(time.Second)
 	for i := 0; i < 100; i++ {
 		buf := fmt.Sprintf("task %d", i)

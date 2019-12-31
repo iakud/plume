@@ -1,9 +1,7 @@
-package worker
+package work
 
 import (
 	"context"
-	"log"
-	"runtime"
 	"sync"
 )
 
@@ -16,19 +14,16 @@ func (this *poolContextKey) String() string { return "worker context value worke
 
 var PoolContextKey = &poolContextKey{}
 
-type PoolWorker interface {
-	// WorkerContext修改用于Worker的Context。
-	// 提供的Context有一个PoolContextKey值。
-	WorkerContext(context.Context, *Worker) context.Context
-	WorkerExit(context.Context, *Worker)
-}
+type RunnerInterceptor func(ctx context.Context, handler RunnerHandler)
+
+type RunnerHandler func(ctx context.Context)
 
 type Pool struct {
-	workers []*Worker
+	works   []*Work
 	maxSize int
 
-	ctx        context.Context
-	poolWorker PoolWorker
+	ctx       context.Context
+	runnerInt RunnerInterceptor
 
 	mutex    sync.Mutex
 	notFull  *sync.Cond
@@ -37,19 +32,19 @@ type Pool struct {
 	queue    []func(context.Context)
 }
 
-func NewPool(numWorkers int, maxSize int, poolWorker PoolWorker) *Pool {
+func NewPool(numWorkers int, maxSize int, runnerInt RunnerInterceptor) *Pool {
 	pool := &Pool{
 		maxSize: maxSize,
 
-		poolWorker: poolWorker,
+		runnerInt: runnerInt,
 	}
 	pool.ctx = context.WithValue(context.Background(), PoolContextKey, pool)
-	var workers []*Worker
+	var works []*Work
 	for i := 0; i < numWorkers; i++ {
-		worker := NewWorker(pool.workerRoutine)
-		workers = append(workers, worker)
+		work := NewWork(pool.workRunner)
+		works = append(works, work)
 	}
-	pool.workers = workers
+	pool.works = works
 	pool.notFull = sync.NewCond(&pool.mutex)
 	pool.notEmpty = sync.NewCond(&pool.mutex)
 	return pool
@@ -62,11 +57,11 @@ func (this *Pool) Close() {
 	}
 	this.closed = true
 	this.notEmpty.Broadcast()
-	workers := this.workers
-	this.workers = nil
+	works := this.works
+	this.works = nil
 	this.mutex.Unlock()
-	for _, worker := range workers {
-		worker.Join()
+	for _, work := range works {
+		work.Join()
 	}
 }
 
@@ -80,23 +75,7 @@ func (this *Pool) Run(task func(context.Context)) {
 	this.notEmpty.Signal()
 }
 
-func (this *Pool) workerRoutine(worker *Worker) {
-	defer func() {
-		if err := recover(); err != nil {
-			const size = 64 << 10
-			buf := make([]byte, size)
-			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("worker: panic worker: %v\n%s", err, buf)
-		}
-	}()
-	ctx := this.ctx
-	if poolWorker := this.poolWorker; poolWorker != nil {
-		ctx = poolWorker.WorkerContext(ctx, worker)
-		if ctx == nil {
-			panic("WorkerContext returned a nil context")
-		}
-		defer poolWorker.WorkerExit(ctx, worker)
-	}
+func (this *Pool) runner(ctx context.Context) {
 	var closed bool
 	for !closed {
 		this.mutex.Lock()
@@ -119,4 +98,12 @@ func (this *Pool) workerRoutine(worker *Worker) {
 			task(ctx)
 		}
 	}
+}
+
+func (this *Pool) workRunner() {
+	if this.runnerInt == nil {
+		this.runner(this.ctx)
+		return
+	}
+	this.runnerInt(this.ctx, this.runner)
 }
