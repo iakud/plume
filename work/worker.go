@@ -48,7 +48,7 @@ func (this *Worker) runner(ctx context.Context) {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("worker: panic runner: %v\n%s", err, buf)
+			log.Printf("work: panic runner: %v\n%s", err, buf)
 		}
 	}()
 	if handler := this.handler; handler != nil {

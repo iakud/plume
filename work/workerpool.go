@@ -9,7 +9,7 @@ const PoolSizeInfinite = 0
 
 type poolContextKey struct{}
 
-func (this *poolContextKey) String() string { return "worker context value worker-pool" }
+func (this *poolContextKey) String() string { return "work context value work-pool" }
 
 var PoolContextKey = &poolContextKey{}
 
