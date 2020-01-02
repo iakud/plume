@@ -1,4 +1,4 @@
-package work
+package worker
 
 import (
 	"context"
@@ -12,8 +12,8 @@ func do(ctx context.Context) {
 	fmt.Printf("wait()\n")
 }
 
-func TestWork(t *testing.T) {
-	work := NewWorker(do, nil)
-	work.Join()
-	fmt.Printf("work.Join()\n")
+func TestWorker(t *testing.T) {
+	worker := NewWorker(do, nil)
+	worker.Join()
+	fmt.Printf("worker.Join()\n")
 }
