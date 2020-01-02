@@ -7,23 +7,17 @@ import (
 
 const PoolSizeInfinite = 0
 
-type poolContextKey struct {
-}
+type poolContextKey struct{}
 
 func (this *poolContextKey) String() string { return "worker context value worker-pool" }
 
 var PoolContextKey = &poolContextKey{}
 
-type RunnerInterceptor func(ctx context.Context, handler RunnerHandler)
-
-type RunnerHandler func(ctx context.Context)
+type TaskFunc func(ctx context.Context)
 
 type Pool struct {
-	works   []*Work
+	workers []*Worker
 	maxSize int
-
-	ctx       context.Context
-	runnerInt RunnerInterceptor
 
 	mutex    sync.Mutex
 	notFull  *sync.Cond
@@ -32,19 +26,17 @@ type Pool struct {
 	queue    []func(context.Context)
 }
 
-func NewPool(numWorkers int, maxSize int, runnerInt RunnerInterceptor) *Pool {
+func NewPool(numWorkers int, maxSize int, handler Handler) *Pool {
 	pool := &Pool{
 		maxSize: maxSize,
-
-		runnerInt: runnerInt,
 	}
-	pool.ctx = context.WithValue(context.Background(), PoolContextKey, pool)
-	var works []*Work
+	ctx := context.WithValue(context.Background(), PoolContextKey, pool)
+	var workers []*Worker
 	for i := 0; i < numWorkers; i++ {
-		work := NewWork(pool.workRunner)
-		works = append(works, work)
+		worker := NewWorkerContext(ctx, pool.runner, handler)
+		workers = append(workers, worker)
 	}
-	pool.works = works
+	pool.workers = workers
 	pool.notFull = sync.NewCond(&pool.mutex)
 	pool.notEmpty = sync.NewCond(&pool.mutex)
 	return pool
@@ -57,15 +49,15 @@ func (this *Pool) Close() {
 	}
 	this.closed = true
 	this.notEmpty.Broadcast()
-	works := this.works
-	this.works = nil
+	workers := this.workers
+	this.workers = nil
 	this.mutex.Unlock()
-	for _, work := range works {
-		work.Join()
+	for _, worker := range workers {
+		worker.Join()
 	}
 }
 
-func (this *Pool) Run(task func(context.Context)) {
+func (this *Pool) Run(task TaskFunc) {
 	this.mutex.Lock()
 	for this.maxSize > 0 && len(this.queue) >= this.maxSize {
 		this.notFull.Wait()
@@ -98,12 +90,4 @@ func (this *Pool) runner(ctx context.Context) {
 			task(ctx)
 		}
 	}
-}
-
-func (this *Pool) workRunner() {
-	if this.runnerInt == nil {
-		this.runner(this.ctx)
-		return
-	}
-	this.runnerInt(this.ctx, this.runner)
 }
