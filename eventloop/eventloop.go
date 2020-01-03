@@ -8,7 +8,7 @@ import (
 )
 
 type EventLoop struct {
-	Context interface{}
+	Userdata interface{}
 
 	mutex    sync.Mutex
 	cond     *sync.Cond
