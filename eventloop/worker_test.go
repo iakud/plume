@@ -11,14 +11,12 @@ func quit(loop *EventLoop) {
 }
 
 func TestWorker(t *testing.T) {
-	done := make(chan struct{})
 	worker := NewWorker(func(loop *EventLoop) {
 		fmt.Printf("loop init\n")
 	})
 	loop := worker.GetLoop()
 	loop.RunInLoop(func() {
 		quit(loop)
-		close(done)
 	})
-	<-done
+	worker.Join()
 }

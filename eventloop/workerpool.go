@@ -27,6 +27,15 @@ func NewWorkerPool(numWorkers int, initFunc InitFunc) *WorkerPool {
 	return pool
 }
 
+func (this *WorkerPool) Close() {
+	for _, loop := range this.loops {
+		loop.Close()
+	}
+	for _, worker := range this.workers {
+		worker.Join()
+	}
+}
+
 func (this *WorkerPool) GetNextLoop() *EventLoop {
 	if len(this.loops) == 0 {
 		return nil

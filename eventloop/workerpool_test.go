@@ -30,5 +30,5 @@ func TestWorkerPool(t *testing.T) {
 			printLoop(nextLoop)
 		})
 	}
-	time.Sleep(time.Millisecond * 100)
+	pool.Close()
 }

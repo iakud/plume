@@ -3,6 +3,7 @@ package eventloop
 import (
 	"log"
 	"runtime"
+	"sync"
 )
 
 type InitFunc func(loop *EventLoop)
@@ -10,6 +11,8 @@ type InitFunc func(loop *EventLoop)
 type Worker struct {
 	initFunc InitFunc
 	loop     *EventLoop
+
+	done sync.WaitGroup
 }
 
 func NewWorker(initFunc InitFunc) *Worker {
@@ -17,12 +20,20 @@ func NewWorker(initFunc InitFunc) *Worker {
 		loop:     NewEventLoop(),
 		initFunc: initFunc,
 	}
-	go worker.runner()
+	worker.done.Add(1)
+	go func() {
+		defer worker.done.Done()
+		worker.runner()
+	}()
 	return worker
 }
 
 func (this *Worker) GetLoop() *EventLoop {
 	return this.loop
+}
+
+func (this *Worker) Join() {
+	this.done.Wait()
 }
 
 func (this *Worker) runner() {
