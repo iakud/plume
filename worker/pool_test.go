@@ -1,4 +1,4 @@
-package work
+package worker
 
 import (
 	"context"
@@ -23,17 +23,17 @@ func fromWorkerNameContext(ctx context.Context) (string, bool) {
 	return name, ok
 }
 
-type WorkerHandler struct {
+type testPool struct {
 }
 
-func (this *WorkerHandler) WorkerContext(ctx context.Context, worker *Worker) context.Context {
+func (this *testPool) WorkerContext(ctx context.Context) context.Context {
 	id := atomic.AddInt32(&workerId, 1)
 	name := fmt.Sprintf("worker%d", id)
 	fmt.Printf("%s init\n", name)
 	return newWorkerNameContext(ctx, name)
 }
 
-func (this *WorkerHandler) Exit(ctx context.Context) {
+func (this *testPool) WorkerExit(ctx context.Context) {
 	name, ok := fromWorkerNameContext(ctx)
 	if !ok {
 		return
@@ -42,7 +42,7 @@ func (this *WorkerHandler) Exit(ctx context.Context) {
 }
 
 func TestPool(t *testing.T) {
-	pool := NewPool(3, PoolSizeInfinite, &WorkerHandler{})
+	pool := NewPool(3, PoolSizeInfinite, &testPool{})
 	time.Sleep(time.Second)
 	for i := 0; i < 100; i++ {
 		buf := fmt.Sprintf("task %d", i)

@@ -1,4 +1,4 @@
-package work
+package worker
 
 import (
 	"context"
@@ -13,7 +13,7 @@ func do(ctx context.Context) {
 }
 
 func TestWorker(t *testing.T) {
-	worker := NewWorker(do, nil)
+	worker := NewWorker(do)
 	worker.Join()
 	fmt.Printf("worker.Join()\n")
 }

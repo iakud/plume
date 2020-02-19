@@ -1,4 +1,4 @@
-package work
+package worker
 
 import (
 	"context"
@@ -7,17 +7,17 @@ import (
 
 const PoolSizeInfinite = 0
 
-type poolContextKey struct{}
-
-func (this *poolContextKey) String() string { return "work context value work-pool" }
-
-var PoolContextKey = &poolContextKey{}
+type PoolOps interface {
+	WorkerContext(ctx context.Context) context.Context
+	WorkerExit(ctx context.Context)
+}
 
 type TaskFunc func(ctx context.Context)
 
 type Pool struct {
 	workers []*Worker
 	maxSize int
+	poolOps PoolOps
 
 	mutex    sync.Mutex
 	notFull  *sync.Cond
@@ -26,14 +26,15 @@ type Pool struct {
 	queue    []func(context.Context)
 }
 
-func NewPool(numWorkers int, maxSize int, handler Handler) *Pool {
+func NewPool(numWorkers int, maxSize int, poolOps PoolOps) *Pool {
 	pool := &Pool{
 		maxSize: maxSize,
+		poolOps: poolOps,
 	}
-	ctx := context.WithValue(context.Background(), PoolContextKey, pool)
+	ctx := context.Background()
 	var workers []*Worker
 	for i := 0; i < numWorkers; i++ {
-		worker := NewWorkerContext(ctx, pool.runner, handler)
+		worker := NewWorkerWithContext(ctx, pool.worker)
 		workers = append(workers, worker)
 	}
 	pool.workers = workers
@@ -67,7 +68,14 @@ func (this *Pool) Run(task TaskFunc) {
 	this.notEmpty.Signal()
 }
 
-func (this *Pool) runner(ctx context.Context) {
+func (this *Pool) worker(ctx context.Context) {
+	if poolOps := this.poolOps; poolOps != nil {
+		ctx = poolOps.WorkerContext(ctx)
+		if ctx == nil {
+			panic("WorkerContext returned a nil context")
+		}
+		defer poolOps.WorkerExit(ctx)
+	}
 	var closed bool
 	for !closed {
 		this.mutex.Lock()
