@@ -7,27 +7,30 @@ import (
 	"time"
 )
 
-func printLoop(loop *EventLoop) {
-	name := loop.Userdata.(string)
-	fmt.Printf("print: %s\n", name)
+func printName(loop *EventLoop) {
+	name, ok := loop.Context.(string)
+	if !ok {
+		return
+	}
+	fmt.Printf("loop name: %s\n", name)
 }
 
 var loopId int32 = 0
 
-func onInit(loop *EventLoop) {
+func onLoopInit(loop *EventLoop) {
 	id := atomic.AddInt32(&loopId, 1)
 	name := fmt.Sprintf("Loop%d", id)
-	loop.Userdata = name
+	loop.Context = name
 	fmt.Printf("init: %s\n", name)
 }
 
-func TestWorkerPool(t *testing.T) {
-	pool := NewWorkerPool(3, onInit)
+func TestPool(t *testing.T) {
+	pool := NewPool(3, onLoopInit)
 	time.Sleep(time.Millisecond * 100)
 	for i := 0; i < 3; i++ {
 		nextLoop := pool.GetNextLoop()
 		nextLoop.RunInLoop(func() {
-			printLoop(nextLoop)
+			printName(nextLoop)
 		})
 	}
 	pool.Close()

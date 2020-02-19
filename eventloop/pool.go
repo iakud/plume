@@ -4,7 +4,7 @@ import (
 	"math/rand"
 )
 
-type WorkerPool struct {
+type Pool struct {
 	workers []*Worker
 	loops   []*EventLoop
 
@@ -12,7 +12,7 @@ type WorkerPool struct {
 	next int
 }
 
-func NewWorkerPool(numWorkers int, initFunc InitFunc) *WorkerPool {
+func NewPool(numWorkers int, initFunc InitFunc) *Pool {
 	var workers []*Worker
 	var loops []*EventLoop
 	for i := 0; i < numWorkers; i++ {
@@ -20,14 +20,14 @@ func NewWorkerPool(numWorkers int, initFunc InitFunc) *WorkerPool {
 		workers = append(workers, worker)
 		loops = append(loops, worker.GetLoop())
 	}
-	pool := &WorkerPool{
+	pool := &Pool{
 		workers: workers,
 		loops:   loops,
 	}
 	return pool
 }
 
-func (this *WorkerPool) Close() {
+func (this *Pool) Close() {
 	for _, loop := range this.loops {
 		loop.Close()
 	}
@@ -36,7 +36,7 @@ func (this *WorkerPool) Close() {
 	}
 }
 
-func (this *WorkerPool) GetNextLoop() *EventLoop {
+func (this *Pool) GetNextLoop() *EventLoop {
 	if len(this.loops) == 0 {
 		return nil
 	}
@@ -48,7 +48,7 @@ func (this *WorkerPool) GetNextLoop() *EventLoop {
 	return this.loops[index]
 }
 
-func (this *WorkerPool) GetAllLoops() []*EventLoop {
+func (this *Pool) GetAllLoops() []*EventLoop {
 	if len(this.loops) == 0 {
 		return nil
 	}

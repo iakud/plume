@@ -23,7 +23,7 @@ func NewWorker(initFunc InitFunc) *Worker {
 	worker.done.Add(1)
 	go func() {
 		defer worker.done.Done()
-		worker.runner()
+		worker.worker()
 	}()
 	return worker
 }
@@ -36,7 +36,7 @@ func (this *Worker) Join() {
 	this.done.Wait()
 }
 
-func (this *Worker) runner() {
+func (this *Worker) worker() {
 	defer func() {
 		if err := recover(); err != nil {
 			const size = 64 << 10
