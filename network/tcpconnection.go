@@ -6,6 +6,7 @@ import (
 	"net"
 	"runtime"
 	"sync"
+	"time"
 )
 
 type TCPConnection struct {
@@ -37,14 +38,15 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
 		}
-		this.conn.Close()
+		this.close()
 	}()
 
-	handler.Connect(this, true)
-	defer handler.Connect(this, false)
 	// start write
 	this.startBackgroundWrite(codec)
 	defer this.stopBackgroundWrite()
+	// conn event
+	handler.Connect(this, true)
+	defer handler.Connect(this, false)
 	// loop read
 	r := bufio.NewReader(this.conn)
 	for {
@@ -58,11 +60,12 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 
 func (this *TCPConnection) startBackgroundWrite(codec Codec) {
 	this.mutex.Lock()
-	defer this.mutex.Unlock()
-
 	if this.closed {
+		this.mutex.Unlock()
 		return
 	}
+	this.mutex.Unlock()
+
 	go this.backgroundWrite(codec)
 }
 
@@ -74,7 +77,7 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
 		}
-		this.conn.Close()
+		this.close()
 	}()
 
 	// loop write
@@ -92,12 +95,12 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 
 		for _, b := range bufs {
 			if err := codec.Write(w, b); err != nil {
-				this.closeSend()
+				this.closeWrite()
 				return
 			}
 		}
 		if err := w.Flush(); err != nil {
-			this.closeSend()
+			this.closeWrite()
 			return
 		}
 	}
@@ -105,23 +108,24 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 
 func (this *TCPConnection) stopBackgroundWrite() {
 	this.mutex.Lock()
-	defer this.mutex.Unlock()
-
 	if this.closed {
+		this.mutex.Unlock()
 		return
 	}
 	this.closed = true
+	this.mutex.Unlock()
+
 	this.cond.Signal()
 }
 
-func (this *TCPConnection) closeSend() {
+func (this *TCPConnection) closeWrite() {
 	this.mutex.Lock()
-	defer this.mutex.Unlock()
-
 	if this.closed {
+		this.mutex.Unlock()
 		return
 	}
 	this.closed = true
+	this.mutex.Unlock()
 }
 
 func (this *TCPConnection) LocalAddr() net.Addr {
@@ -145,10 +149,18 @@ func (this *TCPConnection) Send(b []byte) {
 }
 
 func (this *TCPConnection) close() {
-	this.conn.SetLinger(0)
 	this.conn.Close()
 }
 
 func (this *TCPConnection) Shutdown() {
 	this.stopBackgroundWrite() // stop write
+}
+
+func (this *TCPConnection) ForceClose() {
+	this.conn.SetLinger(0)
+	this.conn.Close()
+}
+
+func (this *TCPConnection) ForceCloseWithDelay(sec int) {
+	time.AfterFunc(time.Second*time.Duration(sec), this.ForceClose)
 }
