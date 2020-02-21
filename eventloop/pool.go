@@ -1,14 +1,9 @@
 package eventloop
 
-import (
-	"math/rand"
-)
-
 type Pool struct {
 	workers []*Worker
 	loops   []*EventLoop
 
-	rand *rand.Rand
 	next int
 }
 
