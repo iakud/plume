@@ -41,11 +41,11 @@ func Infof(format string, args ...interface{}) {
 
 }
 
-func Warn(args ...interface{}) {
+func Warning(args ...interface{}) {
 
 }
 
-func Warnf(format string, args ...interface{}) {
+func Warningf(format string, args ...interface{}) {
 
 }
 

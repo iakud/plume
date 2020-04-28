@@ -67,7 +67,3 @@ func (this *logging) Fatal(args ...interface{}) {
 func (this *logging) Fatalf(format string, args ...interface{}) {
 	this.printf(fatalLog, format, args...)
 }
-
-type innerLogger interface {
-	innerLog()
-}
