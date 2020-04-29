@@ -1,26 +1,5 @@
 package logger
 
-type severity int32
-
-const (
-	debugLog severity = iota
-	infoLog
-	warningLog
-	errorLog
-	fatalLog
-	numSeverity = 5
-)
-
-const severityChar = "DIWEF"
-
-var severityName = []string{
-	debugLog:   "DEBUG",
-	infoLog:    "INFO",
-	warningLog: "WARNING",
-	errorLog:   "ERROR",
-	fatalLog:   "FATAL",
-}
-
 func (s *severity) String() string {
 	return strconv.FormatInt(int64(*s), 10)
 }
