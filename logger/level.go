@@ -1,26 +1,26 @@
 package logger
 
-type logLevel int32
+type Level int32
 
 const (
-	traceLog logLevel = iota
-	debugLog
-	infoLog
-	warningLog
-	errorLog
-	fatalLog
+	TraceLevel Level = iota
+	DebugLevel
+	InfoLevel
+	WarnLevel
+	ErrorLevel
+	FatalLevel
 	numLevel = 6
 )
 
-var logLevelName = [numLevel]string{
-	traceLog: "TRACE ",
-	debugLog: "DEBUG ",
-	infoLog:  "INFO  ",
-	warnLog:  "WARN  ",
-	errorLog: "ERROR ",
-	fatalLog: "FATAL ",
+var levelName = [numLevel]string{
+	TraceLevel: "TRACE ",
+	DebugLevel: "DEBUG ",
+	InfoLevel:  "INFO  ",
+	WarnLevel:  "WARN  ",
+	ErrorLevel: "ERROR ",
+	FatalLevel: "FATAL ",
 }
 
-func (this logLevel) String() string {
-	return logLevelName[this]
+func (this Level) String() string {
+	return levelName[this]
 }

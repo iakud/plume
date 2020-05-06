@@ -65,4 +65,7 @@ func (this *logWriter) rollFile(now time.Time) error {
 
 func (this *logWriter) createFile(filename string, now time.Time) {
 	this.file, err = os.OpenFile(filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
 }
