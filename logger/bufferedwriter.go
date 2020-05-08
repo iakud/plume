@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+const bufferSize = 256 * 1024
+const flushInterval = 30 * time.Second
+
 type bufferedWriter struct {
 	mutex     sync.Mutex
 	writer    io.Writer
@@ -17,7 +20,7 @@ type bufferedWriter struct {
 	cancel context.CancelFunc
 }
 
-func newBufferedWriter(writer io.Writer, bufferSize int, flushInterval time.Duration) {
+func newBufferedWriter(writer io.Writer, bufferSize int, flushPeriod time.Duration) {
 
 	bufWriter := bufio.NewWriterSize(writer, bufferSize)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -29,7 +32,7 @@ func newBufferedWriter(writer io.Writer, bufferSize int, flushInterval time.Dura
 		cancel: cancel,
 	}
 
-	if flushInterval > 0 {
+	if flushPeriod > 0 {
 		go bufferedWriter.flushPeriodically()
 	}
 	return bufferedWriter

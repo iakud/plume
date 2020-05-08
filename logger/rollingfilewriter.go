@@ -1,6 +1,8 @@
 package logger
 
-const bufferSize = 256 * 1024
+import (
+	"os"
+)
 
 type rollingFileWriter struct {
 }
@@ -13,7 +15,7 @@ type rollingFileWriterTime struct {
 	startOfPeriod time.Time
 }
 
-func newFileWriter(logger *logging, path string, name string) *fileWriter {
+func newFileWriter(path string, name string) *fileWriter {
 	fileWriter := new(fileWriter)
 	fileWriter.writer = bufio.NewWriterSize(w, bufferSize)
 	return newWriter
@@ -41,8 +43,6 @@ func (this *fileWriter) rollFile(now time.Time) error {
 		this.file.Close()
 	}
 	this.startOfPeriod = time.Now().Truncate(time.Hour)
-
-	this.writer = bufio.NewWriterSize(this.file, size)
 }
 
 func (this *fileWriter) createFile(filename string, now time.Time) error {
@@ -51,6 +51,5 @@ func (this *fileWriter) createFile(filename string, now time.Time) error {
 		return err
 	}
 	this.file = file
-	this.writer = bufio.NewWriterSize(file, bufferSize)
 	return nil
 }
