@@ -27,15 +27,11 @@ func runWorker(ctx context.Context, handler WorkerHandler) {
 	id := atomic.AddInt32(&workerId, 1)
 	name := fmt.Sprintf("worker%d", id)
 	fmt.Printf("%s init\n", name)
-	ctx = newWorkerNameContext(ctx, name)
 	defer func() {
-		name, ok := fromWorkerNameContext(ctx)
-		if !ok {
-			return
-		}
 		fmt.Printf("%s exit\n", name)
 	}()
 
+	ctx = newWorkerNameContext(ctx, name)
 	handler(ctx)
 }
 
