@@ -161,6 +161,6 @@ func (this *TCPConnection) ForceClose() {
 	this.conn.Close()
 }
 
-func (this *TCPConnection) ForceCloseWithDelay(sec int) {
-	time.AfterFunc(time.Second*time.Duration(sec), this.ForceClose)
+func (this *TCPConnection) AfterForceClose(d time.Duration) {
+	time.AfterFunc(d, this.ForceClose)
 }
