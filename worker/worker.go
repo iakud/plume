@@ -10,32 +10,28 @@ import (
 type WorkerFunc func(ctx context.Context)
 
 type Worker struct {
-	workerFunc WorkerFunc
-
-	done sync.WaitGroup
+	f  WorkerFunc
+	wg sync.WaitGroup
 }
 
-func NewWorker(workerFunc WorkerFunc) *Worker {
-	return NewWorkerWithContext(context.Background(), workerFunc)
+func NewWorker(f WorkerFunc) *Worker {
+	return NewWorkerWithContext(context.Background(), f)
 }
 
-func NewWorkerWithContext(ctx context.Context, workerFunc WorkerFunc) *Worker {
+func NewWorkerWithContext(ctx context.Context, f WorkerFunc) *Worker {
 	worker := &Worker{
-		workerFunc: workerFunc,
+		f: f,
 	}
-	worker.done.Add(1)
-	go func() {
-		defer worker.done.Done()
-		worker.worker(ctx)
-	}()
+	worker.wg.Add(1)
+	go worker.runner(ctx)
 	return worker
 }
 
 func (this *Worker) Join() {
-	this.done.Wait()
+	this.wg.Wait()
 }
 
-func (this *Worker) worker(ctx context.Context) {
+func (this *Worker) runner(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
 			const size = 64 << 10
@@ -43,6 +39,7 @@ func (this *Worker) worker(ctx context.Context) {
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("work: panic worker: %v\n%s", err, buf)
 		}
+		this.wg.Done()
 	}()
-	this.workerFunc(ctx)
+	this.f(ctx)
 }

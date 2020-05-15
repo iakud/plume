@@ -5,19 +5,17 @@ import (
 	"sync"
 )
 
-const PoolSizeInfinite = 0
+type WorkerHandler func(ctx context.Context)
+type WorkerInterceptor func(ctx context.Context, handler WorkerHandler)
 
-type PoolOps interface {
-	WorkerContext(ctx context.Context) context.Context
-	WorkerExit(ctx context.Context)
-}
+const PoolSizeInfinite = 0
 
 type TaskFunc func(ctx context.Context)
 
 type Pool struct {
-	workers []*Worker
-	maxSize int
-	poolOps PoolOps
+	workers     []*Worker
+	maxSize     int
+	interceptor WorkerInterceptor
 
 	mutex    sync.Mutex
 	notFull  *sync.Cond
@@ -26,15 +24,15 @@ type Pool struct {
 	queue    []func(context.Context)
 }
 
-func NewPool(numWorkers int, maxSize int, poolOps PoolOps) *Pool {
+func NewPool(numWorkers int, maxSize int, interceptor WorkerInterceptor) *Pool {
 	pool := &Pool{
-		maxSize: maxSize,
-		poolOps: poolOps,
+		maxSize:     maxSize,
+		interceptor: interceptor,
 	}
 	ctx := context.Background()
 	var workers []*Worker
 	for i := 0; i < numWorkers; i++ {
-		worker := NewWorkerWithContext(ctx, pool.worker)
+		worker := NewWorkerWithContext(ctx, pool.runner)
 		workers = append(workers, worker)
 	}
 	pool.workers = workers
@@ -68,14 +66,14 @@ func (this *Pool) Run(task TaskFunc) {
 	this.notEmpty.Signal()
 }
 
-func (this *Pool) worker(ctx context.Context) {
-	if poolOps := this.poolOps; poolOps != nil {
-		ctx = poolOps.WorkerContext(ctx)
-		if ctx == nil {
-			panic("WorkerContext returned a nil context")
-		}
-		defer poolOps.WorkerExit(ctx)
+func (this *Pool) runner(ctx context.Context) {
+	if this.interceptor == nil {
+		this.runWorker(ctx)
 	}
+	this.interceptor(ctx, this.runWorker)
+}
+
+func (this *Pool) runWorker(ctx context.Context) {
 	var closed bool
 	for !closed {
 		this.mutex.Lock()

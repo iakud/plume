@@ -23,26 +23,24 @@ func fromWorkerNameContext(ctx context.Context) (string, bool) {
 	return name, ok
 }
 
-type testPool struct {
-}
-
-func (this *testPool) WorkerContext(ctx context.Context) context.Context {
+func runWorker(ctx context.Context, handler WorkerHandler) {
 	id := atomic.AddInt32(&workerId, 1)
 	name := fmt.Sprintf("worker%d", id)
 	fmt.Printf("%s init\n", name)
-	return newWorkerNameContext(ctx, name)
-}
+	ctx = newWorkerNameContext(ctx, name)
+	defer func() {
+		name, ok := fromWorkerNameContext(ctx)
+		if !ok {
+			return
+		}
+		fmt.Printf("%s exit\n", name)
+	}()
 
-func (this *testPool) WorkerExit(ctx context.Context) {
-	name, ok := fromWorkerNameContext(ctx)
-	if !ok {
-		return
-	}
-	fmt.Printf("%s exit\n", name)
+	handler(ctx)
 }
 
 func TestPool(t *testing.T) {
-	pool := NewPool(3, PoolSizeInfinite, &testPool{})
+	pool := NewPool(3, PoolSizeInfinite, runWorker)
 	time.Sleep(time.Second)
 	for i := 0; i < 100; i++ {
 		buf := fmt.Sprintf("task %d", i)
