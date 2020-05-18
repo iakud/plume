@@ -7,11 +7,11 @@ type Pool struct {
 	next int
 }
 
-func NewPool(numWorkers int, initFunc InitFunc) *Pool {
+func NewPool(numWorkers int, handler LoopHandler) *Pool {
 	var workers []*Worker
 	var loops []*EventLoop
 	for i := 0; i < numWorkers; i++ {
-		worker := NewWorker(initFunc)
+		worker := NewWorker(handler)
 		workers = append(workers, worker)
 		loops = append(loops, worker.GetLoop())
 	}

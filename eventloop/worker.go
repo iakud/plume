@@ -6,25 +6,30 @@ import (
 	"sync"
 )
 
+type LoopHandler interface {
+	LoopStart(loop *EventLoop)
+	LoopStop(loop *EventLoop)
+}
+
 type InitFunc func(loop *EventLoop)
 
 type Worker struct {
-	loop     *EventLoop
-	initFunc InitFunc
+	loop    *EventLoop
+	handler LoopHandler
 
 	initWg sync.WaitGroup
 	exitWg sync.WaitGroup
 }
 
-func NewWorker(initFunc InitFunc) *Worker {
+func NewWorker(handler LoopHandler) *Worker {
 	worker := &Worker{
-		loop:     NewEventLoop(),
-		initFunc: initFunc,
+		loop:    NewEventLoop(),
+		handler: handler,
 	}
 	worker.initWg.Add(1)
 	worker.exitWg.Add(1)
 	go worker.runLoop()
-	worker.initWg.Wait() // return after initFunc
+	worker.initWg.Wait()
 	return worker
 }
 
@@ -43,12 +48,13 @@ func (this *Worker) runLoop() {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("eventloop: panic worker: %v\n%s", err, buf)
+			log.Printf("eventloop: panic runLoop: %v\n%s", err, buf)
 		}
 		this.exitWg.Done()
 	}()
-	if initFunc := this.initFunc; initFunc != nil {
-		initFunc(this.loop)
+	if handler := this.handler; handler != nil {
+		handler.LoopStart(this.loop)
+		defer handler.LoopStop(this.loop)
 	}
 	this.initWg.Done()
 	this.loop.Loop()

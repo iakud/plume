@@ -5,18 +5,22 @@ import (
 	"testing"
 )
 
-func quit(loop *EventLoop) {
-	fmt.Printf("loop quit\n")
-	loop.Close()
+type loopWorker struct {
+}
+
+func (this *loopWorker) LoopStart(loop *EventLoop) {
+	fmt.Printf("loop start\n")
+}
+
+func (this *loopWorker) LoopStop(loop *EventLoop) {
+	fmt.Printf("loop stop\n")
 }
 
 func TestWorker(t *testing.T) {
-	worker := NewWorker(func(loop *EventLoop) {
-		fmt.Printf("loop init\n")
-	})
+	worker := NewWorker(&loopWorker{})
 	loop := worker.GetLoop()
 	loop.RunInLoop(func() {
-		quit(loop)
+		fmt.Printf("in loop\n")
 	})
 	worker.Close()
 }
