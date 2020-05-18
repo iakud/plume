@@ -8,12 +8,12 @@ import (
 type loopWorker struct {
 }
 
-func (this *loopWorker) LoopStart(loop *EventLoop) {
-	fmt.Printf("loop start\n")
+func (this *loopWorker) LoopInit(loop *EventLoop) {
+	fmt.Printf("loop init\n")
 }
 
-func (this *loopWorker) LoopStop(loop *EventLoop) {
-	fmt.Printf("loop stop\n")
+func (this *loopWorker) LoopClose(loop *EventLoop) {
+	fmt.Printf("loop close\n")
 }
 
 func TestWorker(t *testing.T) {

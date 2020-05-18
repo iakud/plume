@@ -7,8 +7,8 @@ import (
 )
 
 type LoopHandler interface {
-	LoopStart(loop *EventLoop)
-	LoopStop(loop *EventLoop)
+	LoopInit(loop *EventLoop)
+	LoopClose(loop *EventLoop)
 }
 
 type InitFunc func(loop *EventLoop)
@@ -53,8 +53,8 @@ func (this *Worker) runLoop() {
 		this.exitWg.Done()
 	}()
 	if handler := this.handler; handler != nil {
-		handler.LoopStart(this.loop)
-		defer handler.LoopStop(this.loop)
+		handler.LoopInit(this.loop)
+		defer handler.LoopClose(this.loop)
 	}
 	this.initWg.Done()
 	this.loop.Loop()
