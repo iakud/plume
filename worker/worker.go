@@ -10,25 +10,25 @@ import (
 type WorkerFunc func(ctx context.Context)
 
 type Worker struct {
-	f  WorkerFunc
-	wg sync.WaitGroup
+	workerFunc WorkerFunc
+	exitWg     sync.WaitGroup
 }
 
 func NewWorker(f WorkerFunc) *Worker {
 	return NewWorkerWithContext(context.Background(), f)
 }
 
-func NewWorkerWithContext(ctx context.Context, f WorkerFunc) *Worker {
+func NewWorkerWithContext(ctx context.Context, workerFunc WorkerFunc) *Worker {
 	worker := &Worker{
-		f: f,
+		workerFunc: workerFunc,
 	}
-	worker.wg.Add(1)
+	worker.exitWg.Add(1)
 	go worker.runner(ctx)
 	return worker
 }
 
 func (this *Worker) Join() {
-	this.wg.Wait()
+	this.exitWg.Wait()
 }
 
 func (this *Worker) runner(ctx context.Context) {
@@ -37,9 +37,11 @@ func (this *Worker) runner(ctx context.Context) {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("work: panic worker: %v\n%s", err, buf)
+			log.Printf("worker: panic runner: %v\n%s", err, buf)
 		}
-		this.wg.Done()
+		this.exitWg.Done()
 	}()
-	this.f(ctx)
+	if workerFunc := this.workerFunc; workerFunc != nil {
+		workerFunc(ctx)
+	}
 }
