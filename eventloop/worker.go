@@ -9,10 +9,11 @@ import (
 type InitFunc func(loop *EventLoop)
 
 type Worker struct {
-	initFunc InitFunc
 	loop     *EventLoop
+	initFunc InitFunc
 
-	done sync.WaitGroup
+	initWg sync.WaitGroup
+	exitWg sync.WaitGroup
 }
 
 func NewWorker(initFunc InitFunc) *Worker {
@@ -20,23 +21,23 @@ func NewWorker(initFunc InitFunc) *Worker {
 		loop:     NewEventLoop(),
 		initFunc: initFunc,
 	}
-	worker.done.Add(1)
-	go func() {
-		defer worker.done.Done()
-		worker.worker()
-	}()
+	worker.initWg.Add(1)
+	worker.exitWg.Add(1)
+	go worker.runLoop()
+	worker.initWg.Wait() // return after initFunc
 	return worker
+}
+
+func (this *Worker) Close() {
+	this.loop.Close()
+	this.exitWg.Wait()
 }
 
 func (this *Worker) GetLoop() *EventLoop {
 	return this.loop
 }
 
-func (this *Worker) Join() {
-	this.done.Wait()
-}
-
-func (this *Worker) worker() {
+func (this *Worker) runLoop() {
 	defer func() {
 		if err := recover(); err != nil {
 			const size = 64 << 10
@@ -44,9 +45,11 @@ func (this *Worker) worker() {
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("eventloop: panic worker: %v\n%s", err, buf)
 		}
+		this.exitWg.Done()
 	}()
 	if initFunc := this.initFunc; initFunc != nil {
 		initFunc(this.loop)
 	}
+	this.initWg.Done()
 	this.loop.Loop()
 }

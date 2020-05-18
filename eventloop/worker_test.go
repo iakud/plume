@@ -18,5 +18,5 @@ func TestWorker(t *testing.T) {
 	loop.RunInLoop(func() {
 		quit(loop)
 	})
-	worker.Join()
+	worker.Close()
 }

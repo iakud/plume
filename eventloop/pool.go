@@ -23,11 +23,8 @@ func NewPool(numWorkers int, initFunc InitFunc) *Pool {
 }
 
 func (this *Pool) Close() {
-	for _, loop := range this.loops {
-		loop.Close()
-	}
 	for _, worker := range this.workers {
-		worker.Join()
+		worker.Close()
 	}
 }
 
