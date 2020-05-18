@@ -1,3 +1,3 @@
-module github.com/iakud/nebula
+module nebula
 
-go 1.13
+go 1.11
