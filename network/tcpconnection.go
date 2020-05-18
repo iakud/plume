@@ -156,8 +156,7 @@ func (this *TCPConnection) Shutdown() {
 }
 
 func (this *TCPConnection) ForceClose() {
-	this.conn.SetLinger(0)
-	this.conn.Close()
+	this.ForceCloseIn(0)
 }
 
 func (this *TCPConnection) ForceCloseIn(sec int) {
