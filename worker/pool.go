@@ -16,8 +16,8 @@ type PoolHandler interface {
 type TaskFunc func(ctx context.Context)
 
 type Pool struct {
-	handler PoolHandler
 	maxSize int
+	handler PoolHandler
 	workers []*Worker
 
 	mutex    sync.Mutex
