@@ -16,8 +16,8 @@ type PoolHandler interface {
 type TaskFunc func(ctx context.Context)
 
 type Pool struct {
-	maxSize int
 	handler PoolHandler
+	maxSize int
 	workers []*Worker
 
 	mutex    sync.Mutex
@@ -27,6 +27,7 @@ type Pool struct {
 	queue    []func(context.Context)
 }
 
+// maxSize: queue max size, <= 0, Unlimited
 func NewPool(numWorkers int, maxSize int, handler PoolHandler) *Pool {
 	pool := &Pool{
 		maxSize: maxSize,
@@ -62,11 +63,7 @@ func (this *Pool) Close() {
 
 func (this *Pool) Run(task TaskFunc) error {
 	this.mutex.Lock()
-	if this.closed {
-		this.mutex.Unlock() // unlock
-		return ErrPoolClosed
-	}
-	for len(this.queue) >= this.maxSize {
+	for this.maxSize > 0 && len(this.queue) >= this.maxSize {
 		this.notFull.Wait() // wait not full
 	}
 	if this.closed {
