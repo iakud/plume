@@ -1,4 +1,4 @@
-package util
+package concurrent
 
 import (
 	"sync"
@@ -32,4 +32,8 @@ func (this *BlockingQueue) Take() interface{} {
 	this.queue = this.queue[1:]
 	this.mu.Unlock()
 	return v
+}
+
+func (this *BlockingQueue) Len() int {
+	return len(this.queue)
 }
