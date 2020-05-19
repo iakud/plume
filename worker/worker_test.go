@@ -7,13 +7,13 @@ import (
 	"time"
 )
 
-func do(ctx context.Context) {
+func sleep(ctx context.Context) {
+	fmt.Println("sleep second")
 	time.Sleep(time.Second)
-	fmt.Printf("wait()\n")
 }
 
 func TestWorker(t *testing.T) {
-	worker := NewWorker(do)
-	worker.Join()
-	fmt.Printf("worker.Join()\n")
+	worker := NewWorker(sleep)
+	worker.Wait()
+	fmt.Println("sleep done")
 }

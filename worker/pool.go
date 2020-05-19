@@ -2,20 +2,23 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
-type WorkerHandler func(ctx context.Context)
-type WorkerInterceptor func(ctx context.Context, handler WorkerHandler)
+var ErrPoolClosed = errors.New("worker: Pool closed")
 
-const PoolSizeInfinite = 0
+type PoolHandler interface {
+	WorkerContext(ctx context.Context) context.Context
+	WorkerExit(ctx context.Context)
+}
 
 type TaskFunc func(ctx context.Context)
 
 type Pool struct {
-	workers     []*Worker
-	maxSize     int
-	interceptor WorkerInterceptor
+	maxSize int
+	handler PoolHandler
+	workers []*Worker
 
 	mutex    sync.Mutex
 	notFull  *sync.Cond
@@ -24,15 +27,15 @@ type Pool struct {
 	queue    []func(context.Context)
 }
 
-func NewPool(numWorkers int, maxSize int, interceptor WorkerInterceptor) *Pool {
+func NewPool(numWorkers int, maxSize int, handler PoolHandler) *Pool {
 	pool := &Pool{
-		maxSize:     maxSize,
-		interceptor: interceptor,
+		maxSize: maxSize,
+		handler: handler,
 	}
 	ctx := context.Background()
 	var workers []*Worker
 	for i := 0; i < numWorkers; i++ {
-		worker := NewWorkerWithContext(ctx, pool.runner)
+		worker := NewWorkerWithContext(ctx, pool.runWorker)
 		workers = append(workers, worker)
 	}
 	pool.workers = workers
@@ -51,46 +54,60 @@ func (this *Pool) Close() {
 	workers := this.workers
 	this.workers = nil
 	this.mutex.Unlock()
+	// wait workers exit
 	for _, worker := range workers {
-		worker.Join()
+		worker.Wait()
 	}
 }
 
-func (this *Pool) Run(task TaskFunc) {
+func (this *Pool) Run(task TaskFunc) error {
 	this.mutex.Lock()
-	for this.maxSize > 0 && len(this.queue) >= this.maxSize {
-		this.notFull.Wait()
+	if this.closed {
+		this.mutex.Unlock() // unlock
+		return ErrPoolClosed
+	}
+	for len(this.queue) >= this.maxSize {
+		this.notFull.Wait() // wait not full
+	}
+	if this.closed {
+		this.mutex.Unlock() // unlock
+		return ErrPoolClosed
 	}
 	this.queue = append(this.queue, task)
-	this.mutex.Unlock()
 	this.notEmpty.Signal()
+	this.mutex.Unlock()
+	return nil
 }
 
-func (this *Pool) runner(ctx context.Context) {
-	if this.interceptor == nil {
-		this.runWorker(ctx)
+func (this *Pool) take() (TaskFunc, bool) {
+	this.mutex.Lock() // lock
+	for !this.closed && len(this.queue) == 0 {
+		this.notEmpty.Wait() // wait not empty
 	}
-	this.interceptor(ctx, this.runWorker)
+	if len(this.queue) > 0 {
+		task := this.queue[0]
+		this.queue = this.queue[1:]
+		this.notFull.Signal() // not full
+		this.mutex.Unlock()   // unlock
+		return task, true
+	}
+	this.mutex.Unlock() // unlock
+	return nil, false
 }
 
 func (this *Pool) runWorker(ctx context.Context) {
-	var closed bool
-	for !closed {
-		this.mutex.Lock()
-		for !this.closed && len(this.queue) == 0 {
-			this.notEmpty.Wait()
+	if handler := this.handler; handler != nil {
+		ctx = handler.WorkerContext(ctx)
+		if ctx == nil {
+			panic("WorkerContext returned a nil context")
 		}
-		var task func(context.Context)
-		var notFull bool
-		if len(this.queue) > 0 {
-			task = this.queue[0]
-			this.queue = this.queue[1:]
-			notFull = this.maxSize > 0
-		}
-		closed = this.closed
-		this.mutex.Unlock()
-		if notFull {
-			this.notFull.Signal()
+		defer handler.WorkerExit(ctx)
+	}
+
+	for {
+		task, ok := this.take()
+		if !ok {
+			return
 		}
 		if task != nil {
 			task(ctx)

@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,37 +22,43 @@ func fromWorkerNameContext(ctx context.Context) (string, bool) {
 	return name, ok
 }
 
-func runWorker(ctx context.Context, handler WorkerHandler) {
-	id := atomic.AddInt32(&workerId, 1)
-	name := fmt.Sprintf("worker%d", id)
-	fmt.Printf("%s init\n", name)
-	defer func() {
-		fmt.Printf("%s exit\n", name)
-	}()
+type namedPool struct {
+}
 
-	ctx = newWorkerNameContext(ctx, name)
-	handler(ctx)
+func (this *namedPool) WorkerContext(ctx context.Context) context.Context {
+	name := fmt.Sprintf("worker%d", atomic.AddInt32(&workerId, 1))
+	fmt.Printf("%s init\n", name)
+	return newWorkerNameContext(ctx, name)
+}
+
+func (this *namedPool) WorkerExit(ctx context.Context) {
+	if name, ok := fromWorkerNameContext(ctx); ok {
+		fmt.Printf("%s exit\n", name)
+	}
 }
 
 func TestPool(t *testing.T) {
-	pool := NewPool(3, PoolSizeInfinite, runWorker)
+	pool := NewPool(3, 16, &namedPool{})
 	time.Sleep(time.Second)
 	for i := 0; i < 100; i++ {
 		buf := fmt.Sprintf("task %d", i)
-		pool.Run(func(ctx context.Context) {
+		task := func(ctx context.Context) {
 			name, ok := fromWorkerNameContext(ctx)
 			if !ok {
 				return
 			}
 			fmt.Printf("%s run: %s\n", name, buf)
 			time.Sleep(time.Millisecond * 100)
-		})
+		}
+		if err := pool.Run(task); err != nil {
+			panic(err)
+		}
 	}
-	var wg sync.WaitGroup
-	wg.Add(1)
-	pool.Run(func(ctx context.Context) {
-		wg.Done()
-	})
-	wg.Wait()
 	pool.Close()
+
+	if err := pool.Run(func(ctx context.Context) {
+		panic("wrong task")
+	}); err != nil {
+		fmt.Println(err)
+	}
 }

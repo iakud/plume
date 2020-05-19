@@ -4,34 +4,34 @@ import (
 	"context"
 	"log"
 	"runtime"
-	"sync"
 )
 
-type WorkerFunc func(ctx context.Context)
+type WorkerFunc func(context.Context)
 
 type Worker struct {
-	workerFunc WorkerFunc
-	exitWg     sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
-func NewWorker(f WorkerFunc) *Worker {
-	return NewWorkerWithContext(context.Background(), f)
+func NewWorker(workerFunc WorkerFunc) *Worker {
+	return NewWorkerWithContext(context.Background(), workerFunc)
 }
 
-func NewWorkerWithContext(ctx context.Context, workerFunc WorkerFunc) *Worker {
+func NewWorkerWithContext(workerCtx context.Context, workerFunc WorkerFunc) *Worker {
+	ctx, cancel := context.WithCancel(context.Background())
 	worker := &Worker{
-		workerFunc: workerFunc,
+		ctx:    ctx,
+		cancel: cancel,
 	}
-	worker.exitWg.Add(1)
-	go worker.runner(ctx)
+	go worker.runner(workerCtx, workerFunc)
 	return worker
 }
 
-func (this *Worker) Join() {
-	this.exitWg.Wait()
+func (this *Worker) Wait() {
+	<-this.ctx.Done()
 }
 
-func (this *Worker) runner(ctx context.Context) {
+func (this *Worker) runner(workerCtx context.Context, workerFunc WorkerFunc) {
 	defer func() {
 		if err := recover(); err != nil {
 			const size = 64 << 10
@@ -39,9 +39,9 @@ func (this *Worker) runner(ctx context.Context) {
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("worker: panic runner: %v\n%s", err, buf)
 		}
-		this.exitWg.Done()
+		this.cancel()
 	}()
-	if workerFunc := this.workerFunc; workerFunc != nil {
-		workerFunc(ctx)
+	if workerFunc != nil {
+		workerFunc(workerCtx)
 	}
 }
