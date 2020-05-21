@@ -11,8 +11,6 @@ type LoopHandler interface {
 	LoopClose(loop *EventLoop)
 }
 
-type InitFunc func(loop *EventLoop)
-
 type Worker struct {
 	loop    *EventLoop
 	handler LoopHandler
