@@ -38,7 +38,7 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
 		}
-		this.close()
+		this.conn.Close()
 	}()
 
 	// start write
@@ -77,7 +77,7 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
 		}
-		this.close()
+		this.conn.Close()
 	}()
 
 	// loop write
