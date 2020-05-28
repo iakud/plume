@@ -6,6 +6,7 @@ import (
 	"net"
 	"runtime"
 	"sync"
+	"time"
 )
 
 type TCPConnection struct {
@@ -156,10 +157,10 @@ func (this *TCPConnection) Shutdown() {
 }
 
 func (this *TCPConnection) ForceClose() {
-	this.ForceCloseIn(0)
+	this.conn.SetLinger(0)
+	this.conn.Close()
 }
 
-func (this *TCPConnection) ForceCloseIn(sec int) {
-	this.conn.SetLinger(sec)
-	this.conn.Close()
+func (this *TCPConnection) AfterForceClose(d time.Duration) {
+	time.AfterFunc(d, this.ForceClose)
 }
