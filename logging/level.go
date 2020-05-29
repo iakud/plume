@@ -8,8 +8,9 @@ const (
 	InfoLevel
 	WarnLevel
 	ErrorLevel
+	PanicLevel
 	FatalLevel
-	numLevel = 6
+	numLevel = FatalLevel
 )
 
 var levelName = [numLevel]string{
@@ -18,6 +19,7 @@ var levelName = [numLevel]string{
 	InfoLevel:  "INFO  ",
 	WarnLevel:  "WARN  ",
 	ErrorLevel: "ERROR ",
+	PanicLevel: "PANIC ",
 	FatalLevel: "FATAL ",
 }
 
