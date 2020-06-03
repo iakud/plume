@@ -10,7 +10,7 @@ const (
 	ErrorLevel
 	PanicLevel
 	FatalLevel
-	numLevel = FatalLevel
+	numLevel
 )
 
 var levelName = [numLevel]string{
@@ -23,6 +23,14 @@ var levelName = [numLevel]string{
 	FatalLevel: "FATAL ",
 }
 
-func (this Level) String() string {
-	return levelName[this]
+func (l Level) String() string {
+	return levelName[l]
+}
+
+func (l Level) Enabled(level Level) bool {
+	return level >= l
+}
+
+func (l Level) Disabled(level Level) bool {
+	return level < l
 }
