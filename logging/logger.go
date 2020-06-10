@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"fmt"
 	"runtime"
 	"sync/atomic"
 )
@@ -9,6 +10,7 @@ const kCallerSkip int = 2
 
 type Logger struct {
 	level Level
+	pool  *BufferPool
 }
 
 func (logger *Logger) SetLevel(level Level) {
@@ -27,13 +29,12 @@ func (logger *Logger) logf(level Level, format string, a ...interface{}) {
 	if logger.level.Disabled(level) {
 		return
 	}
-	pc, file, line, ok := runtime.Caller(kCallerSkip)
-	if !ok {
-		file = "???"
-		line = 1
-	}
-	caller := newCaller(pc, file, line)
+	caller := newCaller(runtime.Caller(kCallerSkip))
 	_ = caller
+	buffer := logger.pool.Get()
+	fmt.Fprintf(buffer, format, a)
+	// write file
+	logger.pool.Put(buffer)
 }
 
 func (logger *Logger) Tracef(format string, a ...interface{}) {
@@ -70,7 +71,11 @@ type Caller struct {
 	Line int
 }
 
-func newCaller(pc uintptr, file string, line int) Caller {
+func newCaller(pc uintptr, file string, line int, ok bool) Caller {
+	if !ok {
+		file = "???"
+		line = 1
+	}
 	return Caller{
 		PC:   pc,
 		File: file,
