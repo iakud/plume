@@ -1,9 +1,12 @@
 package logging
 
 import (
+	"bytes"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync/atomic"
+	"time"
 )
 
 const kCallerSkip int = 2
@@ -35,6 +38,19 @@ func (logger *Logger) logf(level Level, format string, a ...interface{}) {
 	fmt.Fprintf(buffer, format, a)
 	// write file
 	logger.pool.Put(buffer)
+}
+
+const digits = "0123456789"
+
+func (logger *Logger) formatHeader(b *bytes.Buffer, level Level, caller *Caller) {
+	now := time.Now()
+	year, month, day := now.Date()
+	hour, minute, second := now.Clock()
+	_, _, _, _, _, _ = year, month, day, hour, minute, second
+	y1 := year % 10
+	y0 := (year / 10) % 10
+	b.WriteByte(digits[y0])
+	b.WriteByte(digits[y1])
 }
 
 func (logger *Logger) Tracef(format string, a ...interface{}) {
@@ -75,6 +91,10 @@ func newCaller(pc uintptr, file string, line int, ok bool) Caller {
 	if !ok {
 		file = "???"
 		line = 1
+	} else {
+		if slash := strings.LastIndexByte(file, '/'); slash >= 0 {
+			file = file[slash+1:]
+		}
 	}
 	return Caller{
 		PC:   pc,
