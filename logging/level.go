@@ -14,13 +14,13 @@ const (
 )
 
 var levelName = [numLevel]string{
-	TraceLevel: "TRACE ",
-	DebugLevel: "DEBUG ",
-	InfoLevel:  "INFO  ",
-	WarnLevel:  "WARN  ",
-	ErrorLevel: "ERROR ",
-	PanicLevel: "PANIC ",
-	FatalLevel: "FATAL ",
+	TraceLevel: "TRACE",
+	DebugLevel: "DEBUG",
+	InfoLevel:  "INFO",
+	WarnLevel:  "WARN",
+	ErrorLevel: "ERROR",
+	PanicLevel: "PANIC",
+	FatalLevel: "FATAL",
 }
 
 func (l Level) String() string {
