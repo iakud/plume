@@ -1,11 +1,10 @@
 package logging
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
-	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -15,6 +14,7 @@ const kCallerSkip int = 3
 type Logger struct {
 	level Level
 	pool  *BufferPool
+	w     io.Writer
 }
 
 func New() *Logger {
@@ -23,6 +23,10 @@ func New() *Logger {
 		pool:  NewBufferPool(),
 	}
 	return logger
+}
+
+func (logger *Logger) SetOutput(w io.Writer) {
+	logger.w = w
 }
 
 func (logger *Logger) SetLevel(level Level) {
@@ -37,14 +41,16 @@ func (logger *Logger) IsLevelDisabled(level Level) bool {
 	return logger.GetLevel() > level
 }
 
-func (logger *Logger) output(l Level, b *bytes.Buffer) {
+func (logger *Logger) output(l Level, b *buffer) {
 	if l > ErrorLevel {
 		// FIXME: Sync()
 	}
-	if b.Bytes()[b.Len()-1] != '\n' {
-		b.WriteByte('\n')
-	}
-	os.Stdout.Write(b.Bytes())
+	/*
+		if b.Bytes()[b.Len()-1] != '\n' {
+			b.WriteByte('\n')
+		}
+	*/
+	logger.w.Write(b.Bytes())
 
 	logger.pool.Put(b)
 
@@ -81,19 +87,19 @@ func someDigits(buf *[]byte, i, d int) int {
 	return copy((*buf)[i:], b[j:])
 }
 
-func (logger *Logger) header(l Level) *bytes.Buffer {
+func (logger *Logger) header(l Level) *buffer {
 	_, file, line, ok := runtime.Caller(kCallerSkip)
 	if !ok {
 		file = "???"
 		line = 1
-	} else {
-		if slash := strings.LastIndexByte(file, '/'); slash >= 0 {
-			file = file[slash+1:]
-		}
 	}
-	return logger.formatHeader(l, file, line)
+	buf := logger.pool.Get()
+	buf.formatHeader(time.Now(), l, file, line)
+	// return logger.formatHeader(l, file, line)
+	return buf
 }
 
+/*
 func (logger *Logger) formatHeader(l Level, file string, line int) *bytes.Buffer {
 	now := time.Now()
 	b := logger.pool.Get()
@@ -116,6 +122,9 @@ func (logger *Logger) formatHeader(l Level, file string, line int) *bytes.Buffer
 	b.Write(buf[:20])
 	b.WriteString(l.String())
 	b.WriteByte(' ')
+	if slash := strings.LastIndexByte(file, '/'); slash >= 0 {
+		file = file[slash+1:]
+	}
 	b.WriteString(file)
 	buf[0] = ':'
 	n := someDigits(&buf, 1, line)
@@ -123,12 +132,13 @@ func (logger *Logger) formatHeader(l Level, file string, line int) *bytes.Buffer
 	buf[n+2] = ' '
 	b.Write(buf[:n+3])
 	return b
-}
+}*/
 
 func (logger *Logger) logf(l Level, format string, a ...interface{}) {
 	if logger.level.Enabled(l) {
 		b := logger.header(l)
-		fmt.Fprintf(b, format, a...)
+		// fmt.Fprintf(b, format, a...)
+		b.WriteString(fmt.Sprintf(format, a...))
 		logger.output(l, b)
 	}
 }
@@ -136,7 +146,8 @@ func (logger *Logger) logf(l Level, format string, a ...interface{}) {
 func (logger *Logger) log(l Level, a ...interface{}) {
 	if logger.level.Enabled(l) {
 		b := logger.header(l)
-		fmt.Fprint(b, a...)
+		// fmt.Fprint(b, a...)
+		b.WriteString(fmt.Sprint(a...))
 		logger.output(l, b)
 	}
 }

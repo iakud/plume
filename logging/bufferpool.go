@@ -1,7 +1,6 @@
 package logging
 
 import (
-	"bytes"
 	"sync"
 )
 
@@ -13,19 +12,19 @@ func NewBufferPool() *BufferPool {
 	pool := &BufferPool{
 		p: &sync.Pool{
 			New: func() interface{} {
-				return &bytes.Buffer{}
+				return newBuffer()
 			},
 		},
 	}
 	return pool
 }
 
-func (p *BufferPool) Get() *bytes.Buffer {
-	buffer := p.p.Get().(*bytes.Buffer)
-	buffer.Reset()
-	return buffer
+func (p *BufferPool) Get() *buffer {
+	buf := p.p.Get().(*buffer)
+	buf.Reset()
+	return buf
 }
 
-func (p *BufferPool) Put(buffer *bytes.Buffer) {
-	p.p.Put(buffer)
+func (p *BufferPool) Put(buf *buffer) {
+	p.p.Put(buf)
 }
