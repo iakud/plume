@@ -1,30 +1,41 @@
 package logging
 
+import (
+	"fmt"
+)
+
 type Level int32
 
 const (
 	TraceLevel Level = iota
 	DebugLevel
 	InfoLevel
-	WarnLevel
+	WarningLevel
 	ErrorLevel
 	PanicLevel
 	FatalLevel
 	numLevel
 )
 
-var levelName = [numLevel]string{
-	TraceLevel: "TRACE",
-	DebugLevel: "DEBUG",
-	InfoLevel:  "INFO",
-	WarnLevel:  "WARN",
-	ErrorLevel: "ERROR",
-	PanicLevel: "PANIC",
-	FatalLevel: "FATAL",
-}
-
 func (l Level) String() string {
-	return levelName[l]
+	switch l {
+	case TraceLevel:
+		return "TRACE"
+	case DebugLevel:
+		return "DEBUG"
+	case InfoLevel:
+		return "INFO"
+	case WarningLevel:
+		return "WARNING"
+	case ErrorLevel:
+		return "ERROR"
+	case PanicLevel:
+		return "PANIC"
+	case FatalLevel:
+		return "FATAL"
+	default:
+		return fmt.Sprintf("LEVEL(%d)", l)
+	}
 }
 
 func (l Level) Enabled(level Level) bool {
