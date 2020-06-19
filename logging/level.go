@@ -41,7 +41,3 @@ func (l Level) String() string {
 func (l Level) Enabled(level Level) bool {
 	return level >= l
 }
-
-func (l Level) Disabled(level Level) bool {
-	return level < l
-}

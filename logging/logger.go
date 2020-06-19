@@ -126,21 +126,19 @@ func (logger *Logger) formatHeader(l Level, file string, line int) *bytes.Buffer
 }
 
 func (logger *Logger) logf(l Level, format string, a ...interface{}) {
-	if logger.level.Disabled(l) {
-		return
+	if logger.level.Enabled(l) {
+		b := logger.header(l)
+		fmt.Fprintf(b, format, a...)
+		logger.output(l, b)
 	}
-	b := logger.header(l)
-	fmt.Fprintf(b, format, a...)
-	logger.output(l, b)
 }
 
 func (logger *Logger) log(l Level, a ...interface{}) {
-	if logger.level.Disabled(l) {
-		return
+	if logger.level.Enabled(l) {
+		b := logger.header(l)
+		fmt.Fprint(b, a...)
+		logger.output(l, b)
 	}
-	b := logger.header(l)
-	fmt.Fprint(b, a...)
-	logger.output(l, b)
 }
 
 func (logger *Logger) Tracef(format string, a ...interface{}) {
