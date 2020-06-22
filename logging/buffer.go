@@ -60,17 +60,18 @@ func (buf *buffer) formatHeader(t time.Time, l Level, file string, line int) {
 	*buf = append(*buf, ": "...)
 }
 
-func (buf *buffer) WriteString(s string) {
+func (buf *buffer) appendString(s string) {
 	*buf = append(*buf, s...)
-	if len(s) == 0 || s[len(s)-1] != '\n' {
-		*buf = append(*buf, '\n')
-	}
 }
 
-func (buf *buffer) Bytes() []byte {
+func (buf *buffer) appendByte(c byte) {
+	*buf = append(*buf, c)
+}
+
+func (buf *buffer) bytes() []byte {
 	return *buf
 }
 
-func (buf *buffer) Reset() {
+func (buf *buffer) reset() {
 	*buf = (*buf)[:0]
 }

@@ -19,7 +19,7 @@ func TestLog(t *testing.T) {
 
 func TestLogger(t *testing.T) {
 	logger := New()
-	logger.SetOutput(&Writer{})
+	// logger.SetOutput(&Writer{})
 	logger.Debugf("%s%d\n", "gda", 123)
 }
 
