@@ -42,7 +42,10 @@ func (logger *Logger) IsLevelDisabled(level Level) bool {
 	return logger.GetLevel() > level
 }
 
-func (logger *Logger) output(l Level, s string) {
+func (logger *Logger) log(l Level, s string) {
+	if !logger.level.Enabled(l) {
+		return
+	}
 	now := time.Now() // get this early.
 	_, file, line, ok := runtime.Caller(kCallerSkip)
 	if !ok {
@@ -50,9 +53,7 @@ func (logger *Logger) output(l Level, s string) {
 		line = 1
 	}
 	buf := logger.pool.get()
-
 	buf.formatHeader(now, l, file, line)
-
 	buf.appendString(s)
 	if len(s) == 0 || s[len(s)-1] != '\n' {
 		buf.appendByte('\n')
@@ -64,12 +65,6 @@ func (logger *Logger) output(l Level, s string) {
 
 	logger.w.Write(buf.bytes())
 	logger.pool.put(buf)
-}
-
-func (logger *Logger) log(l Level, s string) {
-	if logger.level.Enabled(l) {
-		logger.output(l, s)
-	}
 }
 
 func (logger *Logger) Tracef(format string, v ...interface{}) {

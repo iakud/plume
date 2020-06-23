@@ -19,8 +19,7 @@ func TestLog(t *testing.T) {
 
 func TestLogger(t *testing.T) {
 	logger := New()
-	// logger.SetOutput(&Writer{})
-	logger.Debugf("%s%d\n", "gda", 123)
+	logger.Debugf("123 %d", 111)
 }
 
 func BenchmarkLog(b *testing.B) {
@@ -39,4 +38,26 @@ func BenchmarkLogger(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		logger.Infof("%s%d\n", "gda", 123)
 	}
+}
+
+func BenchmarkLog2(b *testing.B) {
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	log.SetOutput(&Writer{})
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			log.Printf("%s%d\n", "gda", 123)
+		}
+	})
+}
+
+func BenchmarkLogger2(b *testing.B) {
+	logger := New()
+	logger.SetOutput(&Writer{})
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			logger.Infof("%s%d\n", "gda", 123)
+		}
+	})
 }
