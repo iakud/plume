@@ -24,27 +24,31 @@ func TestLogger(t *testing.T) {
 	logger.Debugf("123 %d", 111)
 }
 
-func BenchmarkLog(b *testing.B) {
+func BenchmarkLogger(b *testing.B) {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	log.SetOutput(&Writer{})
+	file, err := os.OpenFile("./benchmarLogger.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	if err != nil {
+		b.Fatal(err)
+	}
+	log.SetOutput(file)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		log.Printf("%s%d\n", "gda", 123)
+		log.Output(2, fmt.Sprintf("%s%d\n", "gda", 123))
 	}
 }
 
-func BenchmarkLogger(b *testing.B) {
-	logger := NewLogger("./", "benchmarlogger.log")
-	// logger.SetOutput(&Writer{})
+func BenchmarkBufferedLogger(b *testing.B) {
+	logger := NewLogger("./", "benchmarBufferedLogger.log")
+	defer logger.Sync()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		logger.Infof("%s%d\n", "gda", 123)
 	}
 }
 
-func BenchmarkLog2(b *testing.B) {
+func BenchmarkLoggerInParallel(b *testing.B) {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	file, err := os.OpenFile("./benchmarlog2.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	file, err := os.OpenFile("./benchmarLogger2.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -53,16 +57,13 @@ func BenchmarkLog2(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			log.Output(2, fmt.Sprintf("%s%d\n", "gda", 123))
-			// log.Printf("%s%d\n", "gda", 123)
 		}
 	})
 }
 
-func BenchmarkLogger2(b *testing.B) {
-	logger := NewLogger("./", "benchmarlogger2.log")
+func BenchmarkBufferedLoggerInParallel(b *testing.B) {
+	logger := NewLogger("./", "benchmarBufferedLogger2.log")
 	defer logger.Sync()
-	// logger.SetOutput(&Writer{})
-	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			logger.Infof("%s%d\n", "gda", 123)
