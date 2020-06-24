@@ -1,7 +1,9 @@
 package logging
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"testing"
 )
 
@@ -18,7 +20,7 @@ func TestLog(t *testing.T) {
 }
 
 func TestLogger(t *testing.T) {
-	logger := New()
+	logger := NewLogger("./", "testlogger.log")
 	logger.Debugf("123 %d", 111)
 }
 
@@ -32,8 +34,8 @@ func BenchmarkLog(b *testing.B) {
 }
 
 func BenchmarkLogger(b *testing.B) {
-	logger := New()
-	logger.SetOutput(&Writer{})
+	logger := NewLogger("./", "benchmarlogger.log")
+	// logger.SetOutput(&Writer{})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		logger.Infof("%s%d\n", "gda", 123)
@@ -42,18 +44,24 @@ func BenchmarkLogger(b *testing.B) {
 
 func BenchmarkLog2(b *testing.B) {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	log.SetOutput(&Writer{})
+	file, err := os.OpenFile("./benchmarlog2.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	if err != nil {
+		b.Fatal(err)
+	}
+	log.SetOutput(file)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			log.Printf("%s%d\n", "gda", 123)
+			log.Output(2, fmt.Sprintf("%s%d\n", "gda", 123))
+			// log.Printf("%s%d\n", "gda", 123)
 		}
 	})
 }
 
 func BenchmarkLogger2(b *testing.B) {
-	logger := New()
-	logger.SetOutput(&Writer{})
+	logger := NewLogger("./", "benchmarlogger2.log")
+	defer logger.Sync()
+	// logger.SetOutput(&Writer{})
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {

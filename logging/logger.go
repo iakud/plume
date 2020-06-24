@@ -11,23 +11,33 @@ import (
 
 const kCallerSkip int = 2
 
+type WriteSyncer interface {
+	io.Writer
+	Sync() error
+}
+
 type Logger struct {
 	level Level
 	pool  *bufferPool
-	w     io.Writer
+	out   WriteSyncer
 }
 
-func New() *Logger {
+func New(out WriteSyncer) *Logger {
 	logger := &Logger{
 		level: TraceLevel,
 		pool:  newBufferPool(),
-		w:     os.Stdout,
+		out:   out,
 	}
 	return logger
 }
 
-func (logger *Logger) SetOutput(w io.Writer) {
-	logger.w = w
+func NewLogger(path, name string) *Logger {
+	logger := &Logger{
+		level: TraceLevel,
+		pool:  newBufferPool(),
+		out:   newBufferedWriter(path, name),
+	}
+	return logger
 }
 
 func (logger *Logger) SetLevel(level Level) {
@@ -40,6 +50,10 @@ func (logger *Logger) GetLevel() Level {
 
 func (logger *Logger) IsLevelDisabled(level Level) bool {
 	return logger.GetLevel() > level
+}
+
+func (logger *Logger) Sync() error {
+	return logger.out.Sync()
 }
 
 func (logger *Logger) log(l Level, s string) {
@@ -63,7 +77,7 @@ func (logger *Logger) log(l Level, s string) {
 		// FIXME: Sync()
 	}
 
-	logger.w.Write(buf.bytes())
+	logger.out.Write(buf.bytes())
 	logger.pool.put(buf)
 }
 
