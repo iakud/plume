@@ -17,25 +17,14 @@ type WriteSyncer interface {
 }
 
 type Logger struct {
-	level Level
-	pool  *bufferPool
 	out   WriteSyncer
+	level Level
 }
 
-func New(out WriteSyncer) *Logger {
+func New(out WriteSyncer, l Level) *Logger {
 	logger := &Logger{
-		level: TraceLevel,
-		pool:  newBufferPool(),
 		out:   out,
-	}
-	return logger
-}
-
-func NewLogger(path, name string) *Logger {
-	logger := &Logger{
-		level: TraceLevel,
-		pool:  newBufferPool(),
-		out:   newBufferedWriter(path, name),
+		level: l,
 	}
 	return logger
 }
@@ -48,8 +37,8 @@ func (logger *Logger) GetLevel() Level {
 	return Level(atomic.LoadInt32((*int32)(&logger.level)))
 }
 
-func (logger *Logger) IsLevelDisabled(level Level) bool {
-	return logger.GetLevel() > level
+func (logger *Logger) SetOutput(out WriteSyncer) {
+	logger.out = out
 }
 
 func (logger *Logger) Sync() error {
@@ -66,19 +55,18 @@ func (logger *Logger) log(l Level, s string) {
 		file = "???"
 		line = 1
 	}
-	buf := logger.pool.get()
+	buf := newBuffer()
 	buf.formatHeader(now, l, file, line)
 	buf.appendString(s)
 	if len(s) == 0 || s[len(s)-1] != '\n' {
 		buf.appendByte('\n')
 	}
+	logger.out.Write(buf.bytes())
+	buf.free()
 
 	if l > ErrorLevel {
-		// FIXME: Sync()
+		logger.out.Sync()
 	}
-
-	logger.out.Write(buf.bytes())
-	logger.pool.put(buf)
 }
 
 func (logger *Logger) Tracef(format string, v ...interface{}) {

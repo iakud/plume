@@ -1,14 +1,24 @@
 package logging
 
 import (
+	"sync"
 	"time"
 )
 
 type buffer []byte
 
+var bufferFree = sync.Pool{
+	New: func() interface{} { return &buffer{} },
+}
+
 func newBuffer() *buffer {
-	b := make(buffer, 0)
-	return &b
+	buf := bufferFree.Get().(*buffer)
+	return buf
+}
+
+func (buf *buffer) free() {
+	*buf = (*buf)[:0]
+	bufferFree.Put(buf)
 }
 
 func itoa(buf *buffer, i int, wid int) {
@@ -70,8 +80,4 @@ func (buf *buffer) appendByte(c byte) {
 
 func (buf *buffer) bytes() []byte {
 	return *buf
-}
-
-func (buf *buffer) reset() {
-	*buf = (*buf)[:0]
 }
