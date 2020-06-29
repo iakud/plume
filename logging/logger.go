@@ -21,7 +21,7 @@ type Logger struct {
 	level Level
 }
 
-func New(out WriteSyncer, l Level) *Logger {
+func NewLogger(out WriteSyncer, l Level) *Logger {
 	logger := &Logger{
 		out:   out,
 		level: l,
@@ -29,16 +29,12 @@ func New(out WriteSyncer, l Level) *Logger {
 	return logger
 }
 
-func (logger *Logger) SetLevel(level Level) {
-	atomic.StoreInt32((*int32)(&logger.level), int32(level))
+func (logger *Logger) SetLevel(l Level) {
+	atomic.StoreInt32((*int32)(&logger.level), int32(l))
 }
 
 func (logger *Logger) GetLevel() Level {
 	return Level(atomic.LoadInt32((*int32)(&logger.level)))
-}
-
-func (logger *Logger) SetOutput(out WriteSyncer) {
-	logger.out = out
 }
 
 func (logger *Logger) Sync() error {
@@ -46,7 +42,7 @@ func (logger *Logger) Sync() error {
 }
 
 func (logger *Logger) log(l Level, s string) {
-	if !logger.level.Enabled(l) {
+	if !logger.GetLevel().Enabled(l) {
 		return
 	}
 	now := time.Now() // get this early.

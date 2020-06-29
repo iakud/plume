@@ -22,12 +22,13 @@ func TestLogger(t *testing.T) {
 func BenchmarkLogger(b *testing.B) {
 	name := fmt.Sprintf("%s.log", b.Name())
 	writer := NewFileWriter(name)
-	SetOutput(writer)
-	defer Sync()
+	defer writer.Close()
+	logger := NewLogger(writer, TraceLevel)
+	SetLogger(logger)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			Infof("%s %d\n", "hello", 1)
+		for i := 1; pb.Next(); i++ {
+			Infof("%s %d\n", "hello", i)
 		}
 	})
 }

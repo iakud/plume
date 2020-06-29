@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -14,97 +15,116 @@ var ErrClosed = errors.New("logging: file writer already closed")
 const kBufferSize = 256 * 1024
 const kFlushInterval = 10 * time.Second
 
-type fileWriter struct {
+type FileWriter struct {
+	dir    string
+	name   string
+	cancel context.CancelFunc
+
 	mutex  sync.Mutex
+	file   *os.File
 	buffer *bufio.Writer
 	closed bool
-
-	dir  string
-	name string
-	file *os.File
 
 	filePeriod time.Time
 }
 
-func NewFileWriter(path string) *fileWriter {
+func NewFileWriter(path string) *FileWriter {
+	ctx, cancel := context.WithCancel(context.Background())
 	dir, name := filepath.Split(path)
-	fileWriter := &fileWriter{
-		dir:  dir,
-		name: name,
+	fw := &FileWriter{
+		dir:    dir,
+		name:   name,
+		cancel: cancel,
 	}
 
-	go fileWriter.flushPeriodically()
-	return fileWriter
+	go fw.flushPeriodically(ctx)
+	return fw
 }
 
-func (this *fileWriter) Write(p []byte) (int, error) {
-	this.mutex.Lock()
-	if this.closed {
-		this.mutex.Unlock()
+func (fw *FileWriter) Write(p []byte) (int, error) {
+	fw.mutex.Lock()
+	defer fw.mutex.Unlock()
+	if fw.closed {
 		return 0, ErrClosed
 	}
 	thisPeriod := time.Now().Truncate(time.Hour)
-	if thisPeriod != this.filePeriod {
-		if err := this.rollFile(thisPeriod); err != nil {
-			this.mutex.Unlock()
+	if thisPeriod != fw.filePeriod {
+		if err := fw.rollFile(thisPeriod); err != nil {
 			return 0, err
 		}
+		fw.filePeriod = thisPeriod
 	}
-	n, err := this.buffer.Write(p)
-	this.mutex.Unlock()
-	return n, err
+	return fw.buffer.Write(p)
 }
 
-func (this *fileWriter) Sync() error {
-	this.mutex.Lock()
-	if this.closed {
-		this.mutex.Unlock()
+func (fw *FileWriter) Sync() error {
+	fw.mutex.Lock()
+	defer fw.mutex.Unlock()
+	if fw.closed {
 		return ErrClosed
 	}
-	err := this.buffer.Flush()
-	this.mutex.Unlock()
-	return err
+	if fw.file == nil {
+		return nil
+	}
+	fw.buffer.Flush()
+	return fw.file.Sync()
 }
 
-func (this *fileWriter) Close() error {
-	this.mutex.Lock()
-	if this.closed {
-		this.mutex.Unlock()
+func (fw *FileWriter) Flush() error {
+	fw.mutex.Lock()
+	defer fw.mutex.Unlock()
+	if fw.closed {
 		return ErrClosed
 	}
-	if this.file != nil {
-		this.buffer.Flush()
-		this.file.Close()
-		this.file = nil
+	if fw.file == nil {
+		return nil
 	}
-	this.closed = true
-	this.mutex.Unlock()
-	return nil
+	return fw.buffer.Flush()
 }
 
-func (this *fileWriter) flushPeriodically() {
+func (fw *FileWriter) Close() error {
+	fw.mutex.Lock()
+	defer fw.mutex.Unlock()
+	if fw.closed {
+		return ErrClosed
+	}
+	fw.closed = true
+	fw.cancel()
+	if fw.file == nil {
+		return nil
+	}
+	fw.buffer.Flush()
+	return fw.file.Close()
+}
+
+func (fw *FileWriter) flushPeriodically(ctx context.Context) {
 	ticker := time.NewTicker(kFlushInterval)
 	defer ticker.Stop()
-	for _ = range ticker.C {
-		err := this.Sync()
-		if err != nil && err == ErrClosed {
+	for {
+		select {
+		case <-ticker.C:
+			fw.Flush()
+		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (this *fileWriter) rollFile(t time.Time) error {
-	if this.file != nil {
-		this.buffer.Flush()
-		this.file.Close()
-		this.file = nil
+func (fw *FileWriter) rollFile(t time.Time) error {
+	if fw.file != nil {
+		fw.buffer.Flush()
+		fw.file.Close()
+		fw.file = nil
 	}
-	file, err := createFile(this.dir, this.name, t)
+	file, err := createFile(fw.dir, fw.name, t)
 	if err != nil {
 		return err
 	}
-	this.file = file
-	this.buffer = bufio.NewWriterSize(file, kBufferSize)
-	this.filePeriod = t
+	fw.file = file
+	if fw.buffer == nil {
+		fw.buffer = bufio.NewWriterSize(file, kBufferSize)
+	} else {
+		fw.buffer.Reset(file)
+	}
 	return nil
 }
