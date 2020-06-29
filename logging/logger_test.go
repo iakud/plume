@@ -30,11 +30,10 @@ func (w *nullWriter) Sync() error {
 
 func BenchmarkLogger(b *testing.B) {
 	logger := NewLogger(&nullWriter{ioutil.Discard}, TraceLevel)
-	SetLogger(logger)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for i := 1; pb.Next(); i++ {
-			Info("hello", i)
+			logger.Info("hello", i)
 		}
 	})
 }
