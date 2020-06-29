@@ -1,7 +1,8 @@
 package logging
 
 import (
-	"fmt"
+	"io"
+	"io/ioutil"
 	"testing"
 )
 
@@ -19,16 +20,21 @@ func TestLogger(t *testing.T) {
 	Error("hello ", int(ErrorLevel), " world!")
 }
 
+type nullWriter struct {
+	io.Writer
+}
+
+func (w *nullWriter) Sync() error {
+	return nil
+}
+
 func BenchmarkLogger(b *testing.B) {
-	name := fmt.Sprintf("%s.log", b.Name())
-	writer := NewFileWriter(name)
-	defer writer.Close()
-	logger := NewLogger(writer, TraceLevel)
+	logger := NewLogger(&nullWriter{ioutil.Discard}, TraceLevel)
 	SetLogger(logger)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for i := 1; pb.Next(); i++ {
-			Infof("%s %d\n", "hello", i)
+			Info("hello", i)
 		}
 	})
 }
