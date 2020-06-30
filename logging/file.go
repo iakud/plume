@@ -28,7 +28,9 @@ func createFile(dir, name string, t time.Time) (*os.File, error) {
 	}
 
 	symlink := filepath.Join(dir, name)
-	os.Remove(symlink)           // ignore err
-	os.Symlink(logname, symlink) // ignore err
+	os.Remove(symlink) // ignore err
+	if err := os.Symlink(logname, symlink); err != nil {
+		os.Link(logname, symlink)
+	}
 	return file, nil
 }
