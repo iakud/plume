@@ -18,5 +18,5 @@ func TestFileWriterFlush(t *testing.T) {
 	s := fmt.Sprintf("open file: %s\n", time.Now())
 	fw.Write([]byte(s))
 	fw.Write([]byte("sleep 10 seconds\n"))
-	time.Sleep(time.Second * 10)
+	time.Sleep(kFlushInterval)
 }

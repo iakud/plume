@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -63,7 +64,7 @@ func (fw *FileWriter) Sync() error {
 	if fw.closed {
 		return ErrClosed
 	}
-	if fw.file == nil {
+	if fw.buffer == nil {
 		return nil
 	}
 	fw.buffer.Flush()
@@ -76,7 +77,7 @@ func (fw *FileWriter) Flush() error {
 	if fw.closed {
 		return ErrClosed
 	}
-	if fw.file == nil {
+	if fw.buffer == nil {
 		return nil
 	}
 	return fw.buffer.Flush()
@@ -90,7 +91,7 @@ func (fw *FileWriter) Close() error {
 	}
 	fw.closed = true
 	fw.cancel()
-	if fw.file == nil {
+	if fw.buffer == nil {
 		return nil
 	}
 	fw.buffer.Flush()
@@ -111,20 +112,34 @@ func (fw *FileWriter) flushPeriodically(ctx context.Context) {
 }
 
 func (fw *FileWriter) rollFile(t time.Time) error {
-	if fw.file != nil {
+	if fw.buffer != nil {
 		fw.buffer.Flush()
+		fw.buffer = nil
 		fw.file.Close()
 		fw.file = nil
 	}
-	file, err := createFile(fw.dir, fw.name, t)
+	file, err := fw.createFile(t)
 	if err != nil {
 		return err
 	}
 	fw.file = file
-	if fw.buffer == nil {
-		fw.buffer = bufio.NewWriterSize(file, kBufferSize)
-	} else {
-		fw.buffer.Reset(file)
-	}
+	fw.buffer = bufio.NewWriterSize(file, kBufferSize)
 	return nil
+}
+
+func (fw *FileWriter) createFile(t time.Time) (*os.File, error) {
+	name := fmt.Sprintf("%s.%04d%02d%02d-%02d%02d%02d", fw.name,
+		t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+	filename := filepath.Join(fw.dir, name)
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	if err != nil {
+		return nil, fmt.Errorf("logging: cannot create log: %v", err)
+	}
+
+	symlink := filepath.Join(fw.dir, fw.name)
+	os.Remove(symlink) // ignore err
+	if err := os.Symlink(name, symlink); err != nil {
+		os.Link(name, symlink)
+	}
+	return file, nil
 }
