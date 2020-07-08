@@ -14,7 +14,7 @@ func hookWarning(l Level, b []byte) error {
 
 func TestHook(t *testing.T) {
 	hooks := hooks{hookWarning}
-	hooks.hook(InfoLevel, []byte("Info log!"))
-	hooks.hook(WarningLevel, []byte("Warning log!"))
-	hooks.hook(ErrorLevel, []byte("Error log!"))
+	hooks.hook(InfoLevel, []byte("Info log!\n"))
+	hooks.hook(WarningLevel, []byte("Warning log!\n"))
+	hooks.hook(ErrorLevel, []byte("Error log!\n"))
 }
