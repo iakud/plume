@@ -24,3 +24,14 @@ func BenchmarkBuffer(b *testing.B) {
 		}
 	})
 }
+
+func BenchmarkFormatHeader(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			buf := newBuffer()
+			_, file, line, _ := runtime.Caller(0)
+			buf.formatHeader(time.Now(), InfoLevel, file, line)
+			buf.free()
+		}
+	})
+}
