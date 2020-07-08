@@ -19,6 +19,7 @@ const kFlushInterval = 10 * time.Second
 type FileWriter struct {
 	dir    string
 	name   string
+	period time.Duration
 	cancel context.CancelFunc
 
 	mutex  sync.Mutex
@@ -29,12 +30,13 @@ type FileWriter struct {
 	filePeriod time.Time
 }
 
-func NewFileWriter(path string) *FileWriter {
+func NewFileWriter(path string, period time.Duration) *FileWriter {
 	ctx, cancel := context.WithCancel(context.Background())
 	dir, name := filepath.Split(path)
 	fw := &FileWriter{
 		dir:    dir,
 		name:   name,
+		period: period,
 		cancel: cancel,
 	}
 
@@ -48,7 +50,7 @@ func (fw *FileWriter) Write(p []byte) (int, error) {
 	if fw.closed {
 		return 0, ErrClosed
 	}
-	thisPeriod := time.Now().Truncate(time.Hour)
+	thisPeriod := time.Now().Truncate(fw.period)
 	if thisPeriod != fw.filePeriod {
 		if err := fw.rollFile(thisPeriod); err != nil {
 			return 0, err
