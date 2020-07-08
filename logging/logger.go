@@ -19,12 +19,14 @@ type WriteSyncer interface {
 type Logger struct {
 	out   WriteSyncer
 	level Level
+	hooks hooks
 }
 
-func NewLogger(out WriteSyncer, l Level) *Logger {
+func NewLogger(out WriteSyncer, l Level, hooks ...Hook) *Logger {
 	logger := &Logger{
 		out:   out,
 		level: l,
+		hooks: hooks,
 	}
 	return logger
 }
@@ -57,7 +59,12 @@ func (logger *Logger) log(l Level, s string) {
 	if len(s) == 0 || s[len(s)-1] != '\n' {
 		buf.appendByte('\n')
 	}
-	logger.out.Write(buf.bytes())
+	// hook
+	logger.hooks.hook(l, buf.bytes())
+	// write
+	if _, err := logger.out.Write(buf.bytes()); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to write to log: %v\n", err)
+	}
 	buf.free()
 
 	if l > ErrorLevel {

@@ -2,7 +2,6 @@ package logging
 
 import (
 	"io"
-	"io/ioutil"
 	"testing"
 )
 
@@ -24,12 +23,16 @@ type nullWriter struct {
 	io.Writer
 }
 
-func (w *nullWriter) Sync() error {
+func (*nullWriter) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (*nullWriter) Sync() error {
 	return nil
 }
 
 func BenchmarkLogger(b *testing.B) {
-	logger := NewLogger(&nullWriter{ioutil.Discard}, TraceLevel)
+	logger := NewLogger(&nullWriter{}, TraceLevel)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for i := 1; pb.Next(); i++ {
