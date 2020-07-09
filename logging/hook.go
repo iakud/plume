@@ -19,7 +19,7 @@ type Hook func(*Entry) error
 
 type Hooks []Hook
 
-func (hooks Hooks) hook(e *Entry) {
+func (hooks Hooks) log(e *Entry) {
 	for _, hook := range hooks {
 		if err := hook(e); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to hook: %v\n", err)

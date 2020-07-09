@@ -55,7 +55,7 @@ func (logger *Logger) log(l Level, s string) {
 	}
 	// hook
 	if logger.hooks != nil {
-		logger.hooks.hook(&Entry{now, l, s, pc, file, line})
+		logger.hooks.log(&Entry{now, l, s, pc, file, line})
 	}
 	// write
 	buf := newBuffer()
@@ -65,7 +65,7 @@ func (logger *Logger) log(l Level, s string) {
 		buf.appendByte('\n')
 	}
 	if _, err := logger.out.Write(buf.bytes()); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to write to log: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to write: %v\n", err)
 	}
 	buf.free()
 
