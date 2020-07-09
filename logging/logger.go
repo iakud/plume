@@ -19,7 +19,7 @@ type WriteSyncer interface {
 type Logger struct {
 	out   WriteSyncer
 	level Level
-	hooks hooks
+	hooks Hooks
 }
 
 func NewLogger(out WriteSyncer, l Level, hooks ...Hook) *Logger {
@@ -48,20 +48,22 @@ func (logger *Logger) log(l Level, s string) {
 		return
 	}
 	now := time.Now() // get this early.
-	_, file, line, ok := runtime.Caller(kCallerSkip)
+	pc, file, line, ok := runtime.Caller(kCallerSkip)
 	if !ok {
 		file = "???"
 		line = 1
 	}
+	// hook
+	if logger.hooks != nil {
+		logger.hooks.hook(&Entry{now, l, s, pc, file, line})
+	}
+	// write
 	buf := newBuffer()
 	buf.formatHeader(now, l, file, line)
 	buf.appendString(s)
 	if len(s) == 0 || s[len(s)-1] != '\n' {
 		buf.appendByte('\n')
 	}
-	// hook
-	logger.hooks.hook(l, buf.bytes())
-	// write
 	if _, err := logger.out.Write(buf.bytes()); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write to log: %v\n", err)
 	}

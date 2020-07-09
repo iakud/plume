@@ -3,15 +3,25 @@ package logging
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
-type Hook func(Level, []byte) error
+type Entry struct {
+	Time    time.Time
+	Level   Level
+	Message string
+	PC      uintptr
+	File    string
+	Line    int
+}
 
-type hooks []Hook
+type Hook func(*Entry) error
 
-func (h hooks) hook(l Level, p []byte) {
-	for _, hook := range h {
-		if err := hook(l, p); err != nil {
+type Hooks []Hook
+
+func (hooks Hooks) hook(e *Entry) {
+	for _, hook := range hooks {
+		if err := hook(e); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to hook: %v\n", err)
 		}
 	}

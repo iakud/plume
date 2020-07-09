@@ -1,9 +1,23 @@
 package logging
 
 import (
+	"fmt"
 	"io"
+	"os"
 	"testing"
 )
+
+type nullWriter struct {
+	io.Writer
+}
+
+func (*nullWriter) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (*nullWriter) Sync() error {
+	return nil
+}
 
 func TestLogger(t *testing.T) {
 	Tracef("hello %d world!", TraceLevel)
@@ -19,16 +33,25 @@ func TestLogger(t *testing.T) {
 	Error("hello ", int(ErrorLevel), " world!")
 }
 
-type nullWriter struct {
-	io.Writer
-}
+func TestHook(t *testing.T) {
+	warningHook := func(e *Entry) error {
+		if WarningLevel == e.Level {
+			fmt.Fprintln(os.Stdout, "hook warning:", e.Message)
+		}
+		return nil
+	}
+	errorHook := func(e *Entry) error {
+		if ErrorLevel == e.Level {
+			fmt.Fprintln(os.Stdout, "hook error:", e.Message)
+		}
+		return nil
+	}
+	logger := NewLogger(&nullWriter{}, TraceLevel, warningHook, errorHook)
+	SetLogger(logger)
 
-func (*nullWriter) Write(p []byte) (int, error) {
-	return len(p), nil
-}
-
-func (*nullWriter) Sync() error {
-	return nil
+	Info("This is info log!")
+	Warning("This is warning log!")
+	Error("This is error log!")
 }
 
 func BenchmarkLogger(b *testing.B) {
