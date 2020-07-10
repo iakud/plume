@@ -7,7 +7,6 @@ import (
 )
 
 func TestFileWriter(t *testing.T) {
-
 	fw := NewFileWriter(t.Name()+".log", time.Hour, 0)
 	defer fw.Close()
 	s := fmt.Sprintf("open file: %s", time.Now())
