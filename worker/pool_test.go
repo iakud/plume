@@ -39,6 +39,7 @@ func (this *namedPool) WorkerExit(ctx context.Context) {
 
 func TestPool(t *testing.T) {
 	pool := NewPool(3, 16, &namedPool{})
+	defer pool.Close()
 	time.Sleep(time.Second)
 	for i := 0; i < 100; i++ {
 		buf := fmt.Sprintf("task %d", i)
@@ -50,15 +51,8 @@ func TestPool(t *testing.T) {
 			fmt.Printf("%s run: %s\n", name, buf)
 			time.Sleep(time.Millisecond * 100)
 		}
-		if err := pool.Run(task); err != nil {
+		if err := pool.Run(context.Background(), task); err != nil {
 			panic(err)
 		}
-	}
-	pool.Close()
-
-	if err := pool.Run(func(ctx context.Context) {
-		panic("wrong task")
-	}); err != nil {
-		fmt.Println(err)
 	}
 }

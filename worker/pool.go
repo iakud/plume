@@ -3,7 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
-	"sync"
+	//	"sync"
 )
 
 var ErrPoolClosed = errors.New("worker: Pool closed")
@@ -20,18 +20,22 @@ type Pool struct {
 	handler PoolHandler
 	workers []*Worker
 
-	mutex    sync.Mutex
-	notFull  *sync.Cond
-	notEmpty *sync.Cond
-	closed   bool
-	queue    []func(context.Context)
+	taskCh chan TaskFunc
+	/*
+		mutex    sync.Mutex
+		notFull  *sync.Cond
+		notEmpty *sync.Cond
+		closed   bool
+		queue    []func(context.Context)
+	*/
 }
 
-// maxSize: queue max size, <= 0, Unlimited
 func NewPool(numWorkers int, maxSize int, handler PoolHandler) *Pool {
 	pool := &Pool{
 		maxSize: maxSize,
 		handler: handler,
+
+		taskCh: make(chan TaskFunc, maxSize),
 	}
 	ctx := context.Background()
 	var workers []*Worker
@@ -40,56 +44,27 @@ func NewPool(numWorkers int, maxSize int, handler PoolHandler) *Pool {
 		workers = append(workers, worker)
 	}
 	pool.workers = workers
-	pool.notFull = sync.NewCond(&pool.mutex)
-	pool.notEmpty = sync.NewCond(&pool.mutex)
 	return pool
 }
 
 func (this *Pool) Close() {
-	this.mutex.Lock()
-	if this.closed {
-		return
-	}
-	this.closed = true
-	this.notEmpty.Broadcast()
-	workers := this.workers
-	this.workers = nil
-	this.mutex.Unlock()
-	// wait workers exit
-	for _, worker := range workers {
+	close(this.taskCh)
+	for _, worker := range this.workers {
 		worker.Wait()
 	}
+	this.workers = nil
 }
 
-func (this *Pool) Run(task TaskFunc) error {
-	this.mutex.Lock()
-	for this.maxSize > 0 && len(this.queue) >= this.maxSize {
-		this.notFull.Wait() // wait not full
+func (this *Pool) Run(ctx context.Context, task TaskFunc) error {
+	if task == nil {
+		return nil
 	}
-	if this.closed {
-		this.mutex.Unlock() // unlock
-		return ErrPoolClosed
+	select {
+	case this.taskCh <- task:
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	this.queue = append(this.queue, task)
-	this.notEmpty.Signal()
-	this.mutex.Unlock()
 	return nil
-}
-
-func (this *Pool) take() (TaskFunc, bool) {
-	this.mutex.Lock() // lock
-	for !this.closed && len(this.queue) == 0 {
-		this.notEmpty.Wait() // wait not empty
-	}
-	if len(this.queue) > 0 {
-		task := this.queue[0]
-		this.queue = this.queue[1:]
-		this.notFull.Signal() // not full
-		this.mutex.Unlock()   // unlock
-		return task, true
-	}
-	this.mutex.Unlock() // unlock
-	return nil, false
 }
 
 func (this *Pool) runWorker(ctx context.Context) {
@@ -101,13 +76,7 @@ func (this *Pool) runWorker(ctx context.Context) {
 		defer handler.WorkerExit(ctx)
 	}
 
-	for {
-		task, ok := this.take()
-		if !ok {
-			return
-		}
-		if task != nil {
-			task(ctx)
-		}
+	for task := range this.taskCh {
+		task(ctx)
 	}
 }
