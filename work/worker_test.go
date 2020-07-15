@@ -1,19 +1,18 @@
-package worker
+package work
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
 )
 
-func sleep(ctx context.Context) {
+func sleep() {
 	fmt.Println("sleep second")
 	time.Sleep(time.Second)
 }
 
 func TestWorker(t *testing.T) {
 	worker := NewWorker(sleep)
-	worker.Wait()
-	fmt.Println("sleep done")
+	<-worker.Done()
+	fmt.Println("worker done")
 }

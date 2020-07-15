@@ -1,4 +1,4 @@
-package worker
+package work
 
 import (
 	"context"
@@ -10,8 +10,7 @@ import (
 
 var workerId int32 = 0
 
-type workerNameKey struct {
-}
+type workerNameKey struct{}
 
 func newWorkerNameContext(ctx context.Context, name string) context.Context {
 	return context.WithValue(ctx, workerNameKey{}, name)
@@ -22,36 +21,29 @@ func fromWorkerNameContext(ctx context.Context) (string, bool) {
 	return name, ok
 }
 
-type namedPool struct {
-}
-
-func (this *namedPool) WorkerContext(ctx context.Context) context.Context {
+func namedWorker(ctx context.Context, handler WorkerHandler) {
 	name := fmt.Sprintf("worker%d", atomic.AddInt32(&workerId, 1))
+	ctx = newWorkerNameContext(ctx, name)
 	fmt.Printf("%s init\n", name)
-	return newWorkerNameContext(ctx, name)
+	defer fmt.Printf("%s exit\n", name)
+	handler(ctx)
 }
 
-func (this *namedPool) WorkerExit(ctx context.Context) {
-	if name, ok := fromWorkerNameContext(ctx); ok {
-		fmt.Printf("%s exit\n", name)
-	}
-}
-
-func TestPool(t *testing.T) {
-	pool := NewPool(3, 16, &namedPool{})
+func TestWorkerPool(t *testing.T) {
+	pool := NewWorkerPool(16, WorkerInt(namedWorker))
 	defer pool.Close()
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 100)
 	for i := 0; i < 100; i++ {
-		buf := fmt.Sprintf("task %d", i)
+		taskId := i
 		task := func(ctx context.Context) {
 			name, ok := fromWorkerNameContext(ctx)
 			if !ok {
 				return
 			}
-			fmt.Printf("%s run: %s\n", name, buf)
-			time.Sleep(time.Millisecond * 100)
+			fmt.Printf("%s run: task %d\n", name, taskId)
+			time.Sleep(time.Millisecond * 10)
 		}
-		if err := pool.Run(context.Background(), task); err != nil {
+		if err := pool.RunContext(context.Background(), task); err != nil {
 			panic(err)
 		}
 	}
