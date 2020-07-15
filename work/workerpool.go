@@ -39,6 +39,7 @@ func NewWorkerPool(size int, opts ...Option) *WorkerPool {
 
 func (pool *WorkerPool) Close() {
 	close(pool.taskCh)
+	// wait workers done
 	for _, worker := range pool.workers {
 		<-worker.Done()
 	}
