@@ -5,16 +5,14 @@ import (
 	"runtime"
 )
 
-type WorkFunc func()
-
 type Worker struct {
-	work WorkFunc
+	f    func()
 	done chan struct{}
 }
 
-func NewWorker(work WorkFunc) *Worker {
+func NewWorker(f func()) *Worker {
 	worker := &Worker{
-		work: work,
+		f:    f,
 		done: make(chan struct{}),
 	}
 	go worker.runner()
@@ -35,5 +33,5 @@ func (w *Worker) runner() {
 		}
 		close(w.done)
 	}()
-	w.work()
+	w.f()
 }
