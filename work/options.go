@@ -27,7 +27,7 @@ func NumWorker(numWorker int) Option {
 func WorkerInt(workerInt WorkerInterceptor) Option {
 	return optionFunc(func(pool *WorkerPool) {
 		if pool.workerInt != nil {
-			panic("The worker interceptor was already set and may not be reset.")
+			panic("work: worker interceptor was already set and may not be reset.")
 		}
 		pool.workerInt = workerInt
 	})
