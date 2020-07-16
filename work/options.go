@@ -23,12 +23,12 @@ func NumWorker(numWorker int) Option {
 	})
 }
 
-// worker interceptor
-func WorkerInt(workerInt WorkerInterceptor) Option {
+// worker context
+func WorkerCtx(workerCtx WorkerContext) Option {
 	return optionFunc(func(pool *WorkerPool) {
-		if pool.workerInt != nil {
-			panic("work: worker interceptor was already set and may not be reset.")
+		if pool.workerCtx != nil {
+			panic("work: worker context was already set and may not be reset.")
 		}
-		pool.workerInt = workerInt
+		pool.workerCtx = workerCtx
 	})
 }

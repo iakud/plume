@@ -21,16 +21,22 @@ func fromWorkerNameContext(ctx context.Context) (string, bool) {
 	return name, ok
 }
 
-func namedWorker(ctx context.Context, handler WorkerHandler) {
-	name := fmt.Sprintf("worker%d", atomic.AddInt32(&workerId, 1))
-	ctx = newWorkerNameContext(ctx, name)
+type namedWorker struct{}
+
+func (this *namedWorker) WorkContext(ctx context.Context) context.Context {
+	name := fmt.Sprintf("work_%d", atomic.AddInt32(&workerId, 1))
 	fmt.Printf("%s init\n", name)
-	defer fmt.Printf("%s exit\n", name)
-	handler(ctx)
+	return newWorkerNameContext(ctx, name)
+}
+
+func (this *namedWorker) WorkExit(ctx context.Context) {
+	if name, ok := fromWorkerNameContext(ctx); ok {
+		fmt.Printf("%s done\n", name)
+	}
 }
 
 func TestWorkerPool(t *testing.T) {
-	pool := NewWorkerPool(16, WorkerInt(namedWorker))
+	pool := NewWorkerPool(16, WorkerCtx(&namedWorker{}))
 	defer pool.Close()
 	time.Sleep(time.Millisecond * 100)
 	for i := 0; i < 100; i++ {
