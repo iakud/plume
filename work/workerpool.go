@@ -9,25 +9,25 @@ type TaskFunc func(ctx context.Context)
 type WorkHandler func(ctx context.Context)
 
 type WorkerPool struct {
+	opts options
+
 	taskCh  chan TaskFunc
 	workers []*Worker
-
-	numWorker int
-	workProxy func(ctx context.Context, handler WorkHandler)
 }
 
-func NewWorkerPool(size int, opts ...Option) *WorkerPool {
-	pool := &WorkerPool{
-		taskCh:    make(chan TaskFunc, size),
-		numWorker: defaultNumWorker,
+func NewWorkerPool(size int, o ...Option) *WorkerPool {
+	opts := defaultOptions
+	for _, option := range o {
+		option(&opts)
 	}
-	// options apply
-	for _, opt := range opts {
-		opt.apply(pool)
+
+	pool := &WorkerPool{
+		opts:   opts,
+		taskCh: make(chan TaskFunc, size),
 	}
 	// workers run
 	var workers []*Worker
-	for i := 0; i < pool.numWorker; i++ {
+	for i := 0; i < pool.opts.numWorker; i++ {
 		worker := NewWorker(pool.runner)
 		workers = append(workers, worker)
 	}
@@ -68,11 +68,12 @@ func (pool *WorkerPool) TryRun(task TaskFunc) bool {
 
 func (pool *WorkerPool) runner() {
 	ctx := context.Background()
-	if pool.workProxy == nil {
+	proxy := pool.opts.workProxy
+	if proxy == nil {
 		pool.process(ctx)
 		return
 	}
-	pool.workProxy(ctx, pool.process)
+	proxy(ctx, pool.process)
 }
 
 func (pool *WorkerPool) process(ctx context.Context) {

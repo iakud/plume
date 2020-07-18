@@ -5,31 +5,30 @@ import (
 	"runtime"
 )
 
-type Option interface {
-	apply(*WorkerPool)
+type options struct {
+	numWorker int
+	workProxy func(ctx context.Context, handler WorkHandler)
 }
 
-type optionFunc func(*WorkerPool)
-
-func (f optionFunc) apply(pool *WorkerPool) {
-	f(pool)
+var defaultOptions = options{
+	numWorker: runtime.NumCPU(),
 }
 
-var defaultNumWorker = runtime.NumCPU()
+type Option func(*options)
 
 // num of workers
 func NumWorker(numWorker int) Option {
-	return optionFunc(func(pool *WorkerPool) {
-		pool.numWorker = numWorker
-	})
+	return func(opts *options) {
+		opts.numWorker = numWorker
+	}
 }
 
 // work proxy
 func WorkProxy(workProxy func(ctx context.Context, handler WorkHandler)) Option {
-	return optionFunc(func(pool *WorkerPool) {
-		if pool.workProxy != nil {
+	return func(opts *options) {
+		if opts.workProxy != nil {
 			panic("work: work proxy was already set and may not be reset.")
 		}
-		pool.workProxy = workProxy
-	})
+		opts.workProxy = workProxy
+	}
 }
