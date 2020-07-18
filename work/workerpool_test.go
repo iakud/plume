@@ -8,41 +8,34 @@ import (
 	"time"
 )
 
-var workerId int32 = 0
+var workId int32 = 0
 
-type workerNameKey struct{}
+type workNameKey struct{}
 
-func newWorkerNameContext(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, workerNameKey{}, name)
+func newWorkNameContext(ctx context.Context, name string) context.Context {
+	return context.WithValue(ctx, workNameKey{}, name)
 }
 
-func fromWorkerNameContext(ctx context.Context) (string, bool) {
-	name, ok := ctx.Value(workerNameKey{}).(string)
+func fromWorkNameContext(ctx context.Context) (string, bool) {
+	name, ok := ctx.Value(workNameKey{}).(string)
 	return name, ok
 }
 
-type namedWorker struct{}
-
-func (this *namedWorker) WorkContext(ctx context.Context) context.Context {
-	name := fmt.Sprintf("work_%d", atomic.AddInt32(&workerId, 1))
+func namedWorkProxy(ctx context.Context, handler WorkHandler) {
+	name := fmt.Sprintf("work%d", atomic.AddInt32(&workId, 1))
 	fmt.Printf("%s init\n", name)
-	return newWorkerNameContext(ctx, name)
-}
-
-func (this *namedWorker) WorkExit(ctx context.Context) {
-	if name, ok := fromWorkerNameContext(ctx); ok {
-		fmt.Printf("%s done\n", name)
-	}
+	defer fmt.Printf("%s done\n", name)
+	handler(newWorkNameContext(ctx, name))
 }
 
 func TestWorkerPool(t *testing.T) {
-	pool := NewWorkerPool(16, WorkerCtx(&namedWorker{}))
+	pool := NewWorkerPool(16, WorkProxy(namedWorkProxy))
 	defer pool.Close()
 	time.Sleep(time.Millisecond * 100)
 	for i := 0; i < 100; i++ {
 		taskId := i
 		task := func(ctx context.Context) {
-			name, ok := fromWorkerNameContext(ctx)
+			name, ok := fromWorkNameContext(ctx)
 			if !ok {
 				return
 			}

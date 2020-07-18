@@ -6,17 +6,14 @@ import (
 
 type TaskFunc func(ctx context.Context)
 
-type WorkerContext interface {
-	WorkContext(context.Context) context.Context
-	WorkExit(context.Context)
-}
+type WorkHandler func(ctx context.Context)
 
 type WorkerPool struct {
 	taskCh  chan TaskFunc
 	workers []*Worker
 
 	numWorker int
-	workerCtx WorkerContext
+	workProxy func(ctx context.Context, handler WorkHandler)
 }
 
 func NewWorkerPool(size int, opts ...Option) *WorkerPool {
@@ -31,7 +28,7 @@ func NewWorkerPool(size int, opts ...Option) *WorkerPool {
 	// workers run
 	var workers []*Worker
 	for i := 0; i < pool.numWorker; i++ {
-		worker := NewWorker(pool.process)
+		worker := NewWorker(pool.runner)
 		workers = append(workers, worker)
 	}
 	pool.workers = workers
@@ -69,16 +66,16 @@ func (pool *WorkerPool) TryRun(task TaskFunc) bool {
 	return true
 }
 
-func (pool *WorkerPool) process() {
+func (pool *WorkerPool) runner() {
 	ctx := context.Background()
-
-	if workerCtx := pool.workerCtx; workerCtx != nil {
-		ctx = workerCtx.WorkContext(ctx)
-		if ctx == nil {
-			panic("work: WorkContext returned a nil context")
-		}
-		defer workerCtx.WorkExit(ctx)
+	if pool.workProxy == nil {
+		pool.process(ctx)
+		return
 	}
+	pool.workProxy(ctx, pool.process)
+}
+
+func (pool *WorkerPool) process(ctx context.Context) {
 	for task := range pool.taskCh {
 		if task != nil {
 			task(ctx)

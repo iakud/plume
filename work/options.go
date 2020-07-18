@@ -1,6 +1,7 @@
 package work
 
 import (
+	"context"
 	"runtime"
 )
 
@@ -23,12 +24,12 @@ func NumWorker(numWorker int) Option {
 	})
 }
 
-// worker context
-func WorkerCtx(workerCtx WorkerContext) Option {
+// work proxy
+func WorkProxy(workProxy func(ctx context.Context, handler WorkHandler)) Option {
 	return optionFunc(func(pool *WorkerPool) {
-		if pool.workerCtx != nil {
-			panic("work: worker context was already set and may not be reset.")
+		if pool.workProxy != nil {
+			panic("work: work proxy was already set and may not be reset.")
 		}
-		pool.workerCtx = workerCtx
+		pool.workProxy = workProxy
 	})
 }
