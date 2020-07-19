@@ -16,4 +16,4 @@ func (*defaultTCPHandler) Receive(*TCPConnection, []byte) {
 
 }
 
-var DefaultTCPHandler *defaultTCPHandler = &defaultTCPHandler{}
+var DefaultTCPHandler = &defaultTCPHandler{}
