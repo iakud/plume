@@ -157,8 +157,8 @@ func (fw *FileWriter) createFile(t time.Time) (*os.File, error) {
 
 	symlink := filepath.Join(fw.dir, fw.name)
 	os.Remove(symlink) // ignore err
-	if err := os.Symlink(name, symlink); err != nil {
-		os.Link(name, symlink)
+	if err := os.Symlink(filename, symlink); err != nil {
+		os.Link(filename, symlink)
 	}
 	return file, nil
 }

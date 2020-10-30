@@ -53,15 +53,17 @@ func (logger *Logger) log(l Level, s string) {
 		file = "???"
 		line = 1
 	}
+
+	entry := Entry{now, l, s, pc, file, line}
 	// hook
 	if logger.hooks != nil {
-		logger.hooks.log(&Entry{now, l, s, pc, file, line})
+		logger.hooks.log(&entry)
 	}
 	// write
 	buf := newBuffer()
-	buf.formatHeader(now, l, file, line)
-	buf.appendString(s)
-	if len(s) == 0 || s[len(s)-1] != '\n' {
+	buf.formatHeader(entry.Time, entry.Level, entry.File, entry.Line)
+	buf.appendString(entry.Message)
+	if len(entry.Message) == 0 || s[len(entry.Message)-1] != '\n' {
 		buf.appendByte('\n')
 	}
 	if _, err := logger.out.Write(buf.bytes()); err != nil {
@@ -69,7 +71,7 @@ func (logger *Logger) log(l Level, s string) {
 	}
 	buf.free()
 
-	if l > ErrorLevel {
+	if entry.Level > ErrorLevel {
 		logger.out.Sync()
 	}
 }
