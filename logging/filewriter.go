@@ -146,9 +146,25 @@ func (fw *FileWriter) rollFile(t time.Time) error {
 	return nil
 }
 
+func (fw *FileWriter) logName(t time.Time) string {
+	name := fmt.Sprintf("%s.%04d%02d%02d-%02d", fw.name, t.Year(), t.Month(), t.Day(), t.Hour())
+	if fw.period.Truncate(time.Hour) == fw.period {
+		return name
+	}
+	name += fmt.Sprintf("%02d", t.Minute())
+	if fw.period.Truncate(time.Minute) == fw.period {
+		return name
+	}
+	name += fmt.Sprintf("%02d", t.Second())
+	if fw.period.Truncate(time.Second) == fw.period {
+		return name
+	}
+	name += fmt.Sprintf(".%d", t.Nanosecond())
+	return name
+}
+
 func (fw *FileWriter) createFile(t time.Time) (*os.File, error) {
-	name := fmt.Sprintf("%s.%04d%02d%02d-%02d%02d%02d", fw.name,
-		t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+	name := fw.logName(t)
 	filename := filepath.Join(fw.dir, name)
 	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
