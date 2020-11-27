@@ -30,63 +30,91 @@ func Sync() error {
 }
 
 func Tracef(format string, v ...interface{}) {
-	GetLogger().log(TraceLevel, fmt.Sprintf(format, v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(TraceLevel) {
+		logger.log(TraceLevel, fmt.Sprintf(format, v...))
+	}
 }
 
 func Trace(v ...interface{}) {
-	GetLogger().log(TraceLevel, fmt.Sprint(v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(TraceLevel) {
+		logger.log(TraceLevel, fmt.Sprint(v...))
+	}
 }
 
 func Debugf(format string, v ...interface{}) {
-	GetLogger().log(DebugLevel, fmt.Sprintf(format, v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(DebugLevel) {
+		logger.log(DebugLevel, fmt.Sprintf(format, v...))
+	}
 }
 
 func Debug(v ...interface{}) {
-	GetLogger().log(DebugLevel, fmt.Sprint(v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(DebugLevel) {
+		logger.log(DebugLevel, fmt.Sprint(v...))
+	}
 }
 
 func Infof(format string, v ...interface{}) {
-	GetLogger().log(InfoLevel, fmt.Sprintf(format, v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(InfoLevel) {
+		logger.log(InfoLevel, fmt.Sprintf(format, v...))
+	}
 }
 
 func Info(v ...interface{}) {
-	GetLogger().log(InfoLevel, fmt.Sprint(v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(InfoLevel) {
+		logger.log(InfoLevel, fmt.Sprint(v...))
+	}
 }
 
 func Warningf(format string, v ...interface{}) {
-	GetLogger().log(WarningLevel, fmt.Sprintf(format, v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(WarningLevel) {
+		logger.log(WarningLevel, fmt.Sprintf(format, v...))
+	}
 }
 
 func Warning(v ...interface{}) {
-	GetLogger().log(WarningLevel, fmt.Sprint(v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(WarningLevel) {
+		logger.log(WarningLevel, fmt.Sprint(v...))
+	}
 }
 
 func Errorf(format string, v ...interface{}) {
-	GetLogger().log(ErrorLevel, fmt.Sprintf(format, v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(ErrorLevel) {
+		logger.log(ErrorLevel, fmt.Sprintf(format, v...))
+	}
 }
 
 func Error(v ...interface{}) {
-	GetLogger().log(ErrorLevel, fmt.Sprint(v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(ErrorLevel) {
+		logger.log(ErrorLevel, fmt.Sprint(v...))
+	}
 }
 
 func Panicf(format string, v ...interface{}) {
 	s := fmt.Sprintf(format, v...)
-	GetLogger().log(PanicLevel, s)
+	if logger := GetLogger(); logger.GetLevel().Enabled(PanicLevel) {
+		logger.log(PanicLevel, s)
+	}
 	panic(s)
 }
 
 func Panic(v ...interface{}) {
 	s := fmt.Sprint(v...)
-	GetLogger().log(PanicLevel, s)
+	if logger := GetLogger(); logger.GetLevel().Enabled(PanicLevel) {
+		logger.log(PanicLevel, s)
+	}
 	panic(s)
 }
 
 func Fatalf(format string, v ...interface{}) {
-	GetLogger().log(FatalLevel, fmt.Sprintf(format, v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(FatalLevel) {
+		logger.log(FatalLevel, fmt.Sprintf(format, v...))
+	}
 	os.Exit(1)
 }
 
 func Fatal(v ...interface{}) {
-	GetLogger().log(FatalLevel, fmt.Sprint(v...))
+	if logger := GetLogger(); logger.GetLevel().Enabled(FatalLevel) {
+		logger.log(FatalLevel, fmt.Sprint(v...))
+	}
 	os.Exit(1)
 }
