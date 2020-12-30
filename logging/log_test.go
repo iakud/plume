@@ -12,7 +12,7 @@ func BenchmarkLog(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for i := 1; pb.Next(); i++ {
-			logger.Info("hello", i)
+			logger.Info(b.Name(), "abcdefghijklmnopqrstuvwxyz 1234567890 abcdefghijklmnopqrstuvwxyz", i)
 		}
 	})
 }
