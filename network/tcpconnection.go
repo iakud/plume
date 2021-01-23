@@ -2,11 +2,18 @@ package network
 
 import (
 	"bufio"
+	"errors"
 	"log"
 	"net"
 	"runtime"
 	"sync"
 	"time"
+)
+
+var (
+	ErrConnectionClosed = errors.New("network: Connection closed")
+	ErrSendFull         = errors.New("network: Connection send full")
+	kPendingSendSize    = 128
 )
 
 type TCPConnection struct {
@@ -136,16 +143,21 @@ func (this *TCPConnection) RemoteAddr() net.Addr {
 	return this.conn.RemoteAddr()
 }
 
-func (this *TCPConnection) Send(b []byte) {
+func (this *TCPConnection) Send(b []byte) error {
 	this.mutex.Lock()
 	if this.closed {
 		this.mutex.Unlock()
-		return
+		return ErrConnectionClosed
+	}
+	if len(this.bufs) >= kPendingSendSize {
+		this.mutex.Unlock()
+		return ErrSendFull
 	}
 	this.bufs = append(this.bufs, b)
 	this.mutex.Unlock()
 
 	this.cond.Signal()
+	return nil
 }
 
 func (this *TCPConnection) close() {
