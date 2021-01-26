@@ -13,8 +13,9 @@ import (
 var (
 	ErrConnectionClosed        = errors.New("network: Connection closed")
 	ErrConnectionHighWaterMark = errors.New("network: Connection high watermark")
-	DefaultHighWaterMark       = 64 * 1024 * 1024
 )
+
+const DefaultHighWaterMark = 64 * 1024 * 1024
 
 type TCPConnection struct {
 	conn *net.TCPConn
