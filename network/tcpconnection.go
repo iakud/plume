@@ -11,29 +11,30 @@ import (
 )
 
 var (
-	ErrConnectionClosed = errors.New("network: Connection closed")
-	ErrSendFull         = errors.New("network: Connection send full")
-	kPendingSendSize    = 128
+	ErrConnectionClosed        = errors.New("network: Connection closed")
+	ErrConnectionHighWaterMark = errors.New("network: Connection high watermark")
+	DefaultHighWaterMark       = 64 * 1024 * 1024
 )
 
 type TCPConnection struct {
 	conn *net.TCPConn
 
-	bufs   [][]byte
-	mutex  sync.Mutex
-	cond   *sync.Cond
-	closed bool
+	bufs          [][]byte
+	pendingWrite  int
+	highWaterMark int
+	mutex         sync.Mutex
+	cond          *sync.Cond
+	closed        bool
 
 	Userdata interface{}
 }
 
 func newTCPConnection(conn *net.TCPConn) *TCPConnection {
 	connection := &TCPConnection{
-		conn: conn,
+		conn:          conn,
+		highWaterMark: DefaultHighWaterMark,
 	}
 	connection.cond = sync.NewCond(&connection.mutex)
-	conn.SetNoDelay(true) // no delay
-
 	return connection
 }
 
@@ -97,6 +98,7 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 			this.cond.Wait()
 		}
 		bufs, this.bufs = this.bufs, bufs // swap
+		this.pendingWrite = 0             // clear
 		closed = this.closed
 		this.mutex.Unlock()
 
@@ -115,24 +117,21 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 
 func (this *TCPConnection) stopBackgroundWrite() {
 	this.mutex.Lock()
+	defer this.mutex.Unlock()
 	if this.closed {
-		this.mutex.Unlock()
 		return
 	}
 	this.closed = true
-	this.mutex.Unlock()
-
 	this.cond.Signal()
 }
 
 func (this *TCPConnection) closeWrite() {
 	this.mutex.Lock()
+	defer this.mutex.Unlock()
 	if this.closed {
-		this.mutex.Unlock()
 		return
 	}
 	this.closed = true
-	this.mutex.Unlock()
 }
 
 func (this *TCPConnection) LocalAddr() net.Addr {
@@ -143,21 +142,34 @@ func (this *TCPConnection) RemoteAddr() net.Addr {
 	return this.conn.RemoteAddr()
 }
 
-func (this *TCPConnection) Send(b []byte) error {
+func (this *TCPConnection) SetNoDelay(noDelay bool) error {
+	return this.conn.SetNoDelay(noDelay)
+}
+
+func (this *TCPConnection) SetHighWaterMark(highWaterMark int) {
 	this.mutex.Lock()
+	defer this.mutex.Unlock()
+	this.highWaterMark = highWaterMark
+}
+
+func (this *TCPConnection) Send(b []byte) error {
+	n := len(b)
+	if n == 0 {
+		return nil
+	}
+	this.mutex.Lock()
+	defer this.mutex.Unlock()
 	if this.closed {
-		this.mutex.Unlock()
 		return ErrConnectionClosed
 	}
-	if len(this.bufs) >= kPendingSendSize {
-		this.mutex.Unlock()
-		return ErrSendFull
+	var err error
+	if this.pendingWrite+n >= this.highWaterMark && this.pendingWrite < this.highWaterMark {
+		err = ErrConnectionHighWaterMark
 	}
 	this.bufs = append(this.bufs, b)
-	this.mutex.Unlock()
-
+	this.pendingWrite += n
 	this.cond.Signal()
-	return nil
+	return err
 }
 
 func (this *TCPConnection) close() {

@@ -5,28 +5,28 @@ import (
 	"testing"
 )
 
-type EchoServer struct {
+type echoServer struct {
 	server *TCPServer
 }
 
-func NewEchoServer(addr string) *EchoServer {
-	echoServer := &EchoServer{
+func newEchoServer(addr string) *echoServer {
+	srv := &echoServer{
 		server: NewTCPServer(addr),
 	}
-	return echoServer
+	return srv
 }
 
-func (this *EchoServer) ListenAndServe() {
-	if err := this.server.ListenAndServe(this, nil); err != nil {
+func (srv *echoServer) ListenAndServe() {
+	if err := srv.server.ListenAndServe(srv, nil); err != nil {
 		log.Println(err)
 	}
 }
 
-func (this *EchoServer) Close() {
-	this.server.Close()
+func (srv *echoServer) Close() {
+	srv.server.Close()
 }
 
-func (this *EchoServer) Connect(connection *TCPConnection, connected bool) {
+func (srv *echoServer) Connect(connection *TCPConnection, connected bool) {
 	if connected {
 		log.Printf("echo server: %v connected.\n", connection.RemoteAddr())
 	} else {
@@ -34,55 +34,54 @@ func (this *EchoServer) Connect(connection *TCPConnection, connected bool) {
 	}
 }
 
-func (this *EchoServer) Receive(connection *TCPConnection, b []byte) {
+func (srv *echoServer) Receive(connection *TCPConnection, b []byte) {
 	message := string(b)
 	log.Printf("echo server: %v receive %v\n", connection.RemoteAddr(), message)
-	log.Println("echo server: send", Message)
+	log.Println("echo server: send", message)
 	connection.Send(b)
 	connection.Shutdown()
 }
 
-var Message string = "hello"
-
-type EchoClient struct {
+type echoClient struct {
 	client *TCPClient
 }
 
-func NewEchoClient(addr string) *EchoClient {
-	echoClient := &EchoClient{
+func newEchoClient(addr string) *echoClient {
+	echoClient := &echoClient{
 		client: NewTCPClient(addr),
 	}
 	return echoClient
 }
 
-func (this *EchoClient) ConnectAndServe() {
-	this.client.EnableRetry() // 启用retry
-	if err := this.client.DialAndServe(this, nil); err != nil {
+func (c *echoClient) ConnectAndServe() {
+	c.client.EnableRetry() // 启用retry
+	if err := c.client.DialAndServe(c, nil); err != nil {
 		log.Println(err)
 	}
 }
 
-func (this *EchoClient) Connect(connection *TCPConnection, connected bool) {
+func (c *echoClient) Connect(connection *TCPConnection, connected bool) {
+	const message string = "hello"
 	if connected {
 		log.Printf("echo client: %v connected.\n", connection.RemoteAddr())
-		log.Println("echo client: send", Message)
-		connection.Send([]byte(Message))
+		log.Println("echo client: send", message)
+		connection.Send([]byte(message))
 	} else {
 		log.Printf("echo client: %v disconnected.\n", connection.RemoteAddr())
-		this.client.Close()
+		c.client.Close()
 	}
 }
 
-func (this *EchoClient) Receive(connection *TCPConnection, b []byte) {
+func (c *echoClient) Receive(connection *TCPConnection, b []byte) {
 	log.Printf("echo client: %v receive %v\n", connection.RemoteAddr(), string(b))
 }
 
 func TestEcho(t *testing.T) {
-	echoServer := NewEchoServer("localhost:8000")
+	srv := newEchoServer("localhost:8000")
 	go func() {
-		echoClient := NewEchoClient("localhost:8000")
-		echoClient.ConnectAndServe()
-		echoServer.Close()
+		c := newEchoClient("localhost:8000")
+		c.ConnectAndServe()
+		srv.Close()
 	}()
-	echoServer.ListenAndServe()
+	srv.ListenAndServe()
 }

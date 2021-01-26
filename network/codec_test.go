@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-type CodecTest struct {
+type codecTest struct {
 }
 
-func (this *CodecTest) Read(r io.Reader) ([]byte, error) {
+func (this *codecTest) Read(r io.Reader) ([]byte, error) {
 	h := make([]byte, 2)
 	if _, err := io.ReadFull(r, h); err != nil {
 		return nil, err
@@ -24,7 +24,7 @@ func (this *CodecTest) Read(r io.Reader) ([]byte, error) {
 	return b, nil
 }
 
-func (this *CodecTest) Write(w io.Writer, b []byte) error {
+func (this *codecTest) Write(w io.Writer, b []byte) error {
 	h := make([]byte, 2)
 	binary.BigEndian.PutUint16(h, uint16(len(b)))
 	if _, err := w.Write(h); err != nil {
@@ -38,13 +38,13 @@ func (this *CodecTest) Write(w io.Writer, b []byte) error {
 
 func TestCodec(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
-	var codecTest CodecTest
+	var c codecTest
 	message := "hello"
-	if err := codecTest.Write(buffer, []byte(message)); err != nil {
+	if err := c.Write(buffer, []byte(message)); err != nil {
 		log.Fatalln(err)
 	}
 	log.Println("codec write", message)
-	b, err := codecTest.Read(buffer)
+	b, err := c.Read(buffer)
 	if err != nil {
 		log.Fatalln(err)
 	}
