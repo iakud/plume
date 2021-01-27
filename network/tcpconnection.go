@@ -11,29 +11,24 @@ import (
 )
 
 var (
-	ErrConnectionClosed        = errors.New("network: Connection closed")
-	ErrConnectionHighWaterMark = errors.New("network: Connection high watermark")
+	ErrConnectionPendingSendFull = errors.New("network: Connection pending send full")
 )
-
-const DefaultHighWaterMark = 64 * 1024 * 1024
 
 type TCPConnection struct {
 	conn *net.TCPConn
 
-	bufs          [][]byte
-	pendingWrite  int
-	highWaterMark int
-	mutex         sync.Mutex
-	cond          *sync.Cond
-	closed        bool
+	bufs        [][]byte
+	pendingSend int
+	mutex       sync.Mutex
+	cond        *sync.Cond
+	closed      bool
 
 	Userdata interface{}
 }
 
 func newTCPConnection(conn *net.TCPConn) *TCPConnection {
 	connection := &TCPConnection{
-		conn:          conn,
-		highWaterMark: DefaultHighWaterMark,
+		conn: conn,
 	}
 	connection.cond = sync.NewCond(&connection.mutex)
 	return connection
@@ -46,8 +41,8 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
+			this.conn.Close()
 		}
-		this.conn.Close()
 	}()
 
 	// start write
@@ -61,6 +56,7 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 	for {
 		b, err := codec.Read(r)
 		if err != nil {
+			this.conn.Close()
 			return
 		}
 		handler.Receive(this, b)
@@ -69,12 +65,11 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 
 func (this *TCPConnection) startBackgroundWrite(codec Codec) {
 	this.mutex.Lock()
+	defer this.mutex.Unlock()
 	if this.closed {
 		this.mutex.Unlock()
 		return
 	}
-	this.mutex.Unlock()
-
 	go this.backgroundWrite(codec)
 }
 
@@ -85,8 +80,8 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
+			this.conn.Close()
 		}
-		this.conn.Close()
 	}()
 
 	// loop write
@@ -99,21 +94,23 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 			this.cond.Wait()
 		}
 		bufs, this.bufs = this.bufs, bufs // swap
-		this.pendingWrite = 0             // clear
 		closed = this.closed
 		this.mutex.Unlock()
 
 		for _, b := range bufs {
 			if err := codec.Write(w, b); err != nil {
 				this.closeWrite()
+				this.conn.Close()
 				return
 			}
 		}
 		if err := w.Flush(); err != nil {
 			this.closeWrite()
+			this.conn.Close()
 			return
 		}
 	}
+	this.conn.CloseWrite()
 }
 
 func (this *TCPConnection) stopBackgroundWrite() {
@@ -147,10 +144,10 @@ func (this *TCPConnection) SetNoDelay(noDelay bool) error {
 	return this.conn.SetNoDelay(noDelay)
 }
 
-func (this *TCPConnection) SetHighWaterMark(highWaterMark int) {
+func (this *TCPConnection) SetPendingSend(pendingSend int) {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
-	this.highWaterMark = highWaterMark
+	this.pendingSend = pendingSend
 }
 
 func (this *TCPConnection) Send(b []byte) error {
@@ -161,16 +158,14 @@ func (this *TCPConnection) Send(b []byte) error {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 	if this.closed {
-		return ErrConnectionClosed
+		return nil
 	}
-	var err error
-	if this.pendingWrite+n >= this.highWaterMark && this.pendingWrite < this.highWaterMark {
-		err = ErrConnectionHighWaterMark
+	if this.pendingSend > 0 && len(this.bufs) >= this.pendingSend {
+		return ErrConnectionPendingSendFull
 	}
 	this.bufs = append(this.bufs, b)
-	this.pendingWrite += n
 	this.cond.Signal()
-	return err
+	return nil
 }
 
 func (this *TCPConnection) close() {
