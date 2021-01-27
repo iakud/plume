@@ -110,7 +110,8 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 			return
 		}
 	}
-	this.conn.CloseWrite()
+	// not writing now
+	this.conn.CloseWrite() // only SHUT_WR
 }
 
 func (this *TCPConnection) stopBackgroundWrite() {
@@ -151,8 +152,7 @@ func (this *TCPConnection) SetPendingSend(pendingSend int) {
 }
 
 func (this *TCPConnection) Send(b []byte) error {
-	n := len(b)
-	if n == 0 {
+	if len(b) == 0 {
 		return nil
 	}
 	this.mutex.Lock()
@@ -183,4 +183,9 @@ func (this *TCPConnection) ForceClose() {
 
 func (this *TCPConnection) AfterForceClose(d time.Duration) {
 	time.AfterFunc(d, this.ForceClose)
+}
+
+func (this *TCPConnection) ShutdownAndAfterForceClose(d time.Duration) {
+	this.Shutdown()
+	this.AfterForceClose(d)
 }
