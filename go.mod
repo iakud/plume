@@ -1,4 +1,4 @@
-module github.com/iakud/nebula
+module github.com/iakud/plume
 
 go 1.11
 
