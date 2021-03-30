@@ -30,8 +30,9 @@ func Run(app App) {
 		Close()
 	}()
 	go http.ListenAndServe(":8080", nil)
-
+	app.Init()
 	<-done
+	app.Destory()
 	atomic.StoreInt32(&running, 0)
 }
 
