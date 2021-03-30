@@ -1,6 +1,8 @@
 package plume
 
 import (
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"sync/atomic"
@@ -14,7 +16,7 @@ type App interface {
 	Destory()
 }
 
-func Run() {
+func Run(app App) {
 	if !atomic.CompareAndSwapInt32(&running, 0, 1) {
 		// FIXME: log
 		return
@@ -22,7 +24,13 @@ func Run() {
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
-	sig := <-c
+	go func() {
+		sig := <-c
+		_ = sig
+		Close()
+	}()
+	go http.ListenAndServe(":8080", nil)
+
 	<-done
 	atomic.StoreInt32(&running, 0)
 }
