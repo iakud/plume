@@ -20,6 +20,8 @@ func (*nullWriter) Sync() error {
 }
 
 func TestLogger(t *testing.T) {
+	SetLevel(TraceLevel)
+
 	Tracef("hello %d world!", TraceLevel)
 	Debugf("hello %d world!", DebugLevel)
 	Infof("hello %d world!", InfoLevel)
@@ -46,8 +48,10 @@ func TestHook(t *testing.T) {
 		}
 		return nil
 	}
-	logger := NewLogger(&nullWriter{}, TraceLevel, warningHook, errorHook)
-	SetLogger(logger)
+	SetOutput(&nullWriter{})
+	SetLevel(TraceLevel)
+	AddHook(warningHook)
+	AddHook(errorHook)
 
 	Info("This is info log!")
 	Warning("This is warning log!")
@@ -55,7 +59,7 @@ func TestHook(t *testing.T) {
 }
 
 func BenchmarkLogger(b *testing.B) {
-	logger := NewLogger(&nullWriter{}, TraceLevel)
+	logger := New(&nullWriter{}, TraceLevel)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for i := 1; pb.Next(); i++ {

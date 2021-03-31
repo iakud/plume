@@ -1,6 +1,7 @@
 package plume
 
 import (
+	"context"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -9,10 +10,11 @@ import (
 )
 
 var running int32
-var done = make(chan struct{})
+var ctx, cancel = context.WithCancel(context.Background())
 
 type App interface {
 	Init()
+	Run(context.Context)
 	Destory()
 }
 
@@ -31,11 +33,11 @@ func Run(app App) {
 	}()
 	go http.ListenAndServe(":8080", nil)
 	app.Init()
-	<-done
+	app.Run(ctx)
 	app.Destory()
 	atomic.StoreInt32(&running, 0)
 }
 
 func Close() {
-	close(done)
+	cancel()
 }
