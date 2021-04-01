@@ -18,7 +18,7 @@ type WriteSyncer interface {
 }
 
 type Logger struct {
-	mu    sync.Mutex
+	mu    sync.RWMutex
 	out   WriteSyncer
 	level Level
 	hooks Hooks
@@ -72,29 +72,25 @@ func (logger *Logger) log(l Level, s string) {
 	}
 	entry := Entry{now, l, s, pc, file, line}
 	// hook
-	logger.logHooks(&entry)
+	logger.mu.RLock()
+	defer logger.mu.RUnlock()
+	logger.hooks.log(&entry)
+	logger.mu.RUnlock()
 	// write
 	buf := newBuffer()
-	defer buf.free()
 	buf.formatHeader(entry.Time, entry.Level, entry.File, entry.Line)
 	buf.appendString(entry.Message)
 	if len(entry.Message) == 0 || entry.Message[len(entry.Message)-1] != '\n' {
 		buf.appendByte('\n')
 	}
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
+	buf.free()
+	logger.mu.RLock()
 	if _, err := logger.out.Write(buf.bytes()); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write: %v\n", err)
 	}
 	if entry.Level > ErrorLevel {
 		logger.out.Sync()
 	}
-}
-
-func (logger *Logger) logHooks(entry *Entry) {
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
-	logger.hooks.log(entry)
 }
 
 func (logger *Logger) Tracef(format string, v ...interface{}) {
