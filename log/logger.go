@@ -78,12 +78,12 @@ func (logger *Logger) log(l Level, s string) {
 	logger.mu.RUnlock()
 	// write
 	buf := newBuffer()
+	defer buf.free()
 	buf.formatHeader(entry.Time, entry.Level, entry.File, entry.Line)
 	buf.appendString(entry.Message)
 	if len(entry.Message) == 0 || entry.Message[len(entry.Message)-1] != '\n' {
 		buf.appendByte('\n')
 	}
-	buf.free()
 	logger.mu.RLock()
 	if _, err := logger.out.Write(buf.bytes()); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write: %v\n", err)
