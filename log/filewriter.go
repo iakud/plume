@@ -1,4 +1,4 @@
-package logging
+package log
 
 import (
 	"bufio"
@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-var ErrClosed = errors.New("logging: file writer already closed")
+var ErrClosed = errors.New("log: file writer already closed")
 
 const kBufferSize = 256 * 1024
 const kFlushInterval = 10 * time.Second
@@ -168,7 +168,7 @@ func (fw *FileWriter) createFile(t time.Time) (*os.File, error) {
 	filename := filepath.Join(fw.dir, name)
 	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
-		return nil, fmt.Errorf("logging: cannot create log: %v", err)
+		return nil, fmt.Errorf("log: cannot create log: %v", err)
 	}
 
 	symlink := filepath.Join(fw.dir, fw.name)
