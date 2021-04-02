@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"sync/atomic"
+
+	"github.com/iakud/plume/log"
 )
 
 var running int32
@@ -20,10 +22,10 @@ type App interface {
 
 func Run(app App) {
 	if !atomic.CompareAndSwapInt32(&running, 0, 1) {
-		// FIXME: log
+		log.Info("Plume has running")
 		return
 	}
-
+	log.Infof("Plume starting up")
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
 	go func() {
@@ -34,6 +36,7 @@ func Run(app App) {
 	go http.ListenAndServe(":8080", nil)
 	app.Init()
 	app.Run(ctx)
+	log.Infof("Plume closing down")
 	app.Destory()
 	atomic.StoreInt32(&running, 0)
 }
