@@ -93,10 +93,10 @@ type TCPHandler interface {
 
 `Shutdown()`将设置关闭状态，并在给定的超时时间后（默认3秒）完全关闭`socket`，当发送协程发现关闭状态被设置，则会在缓冲队列所有数据都写入`socket`后调用`conn.CloseWrite()`通知对端已经写入完毕，此时等待对端主动关闭
 
-或者，直接调用`ShutdownIn(d time.Duration)`例如：
+或者，直接调用`CloseWithTimeout(timeout time.Duration)`例如：
 
 ```go
-conn.ShutdownIn(time.Second * 3)
+conn.CloseWithTimeout(time.Second * 3)
 ```
 
 #### 吞吐量测试
