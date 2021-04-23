@@ -168,16 +168,14 @@ func (this *TCPConnection) Send(b []byte) error {
 	return nil
 }
 
+func (this *TCPConnection) Shutdown() {
+	this.stopBackgroundWrite() // stop write
+}
+
 func (this *TCPConnection) Close() {
 	this.conn.Close()
 }
 
-func (this *TCPConnection) Shutdown() {
-	const delay = time.Second * 3
-	this.ShutdownIn(delay)
-}
-
-func (this *TCPConnection) ShutdownIn(d time.Duration) {
-	this.stopBackgroundWrite() // stop write
-	time.AfterFunc(d, this.Close)
+func (this *TCPConnection) CloseWithTimeout(timeout time.Duration) {
+	time.AfterFunc(timeout, this.Close)
 }
