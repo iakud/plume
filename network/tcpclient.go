@@ -79,7 +79,7 @@ func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
 
 		connection := newTCPConnection(conn)
 		if err := this.newConnection(connection); err != nil {
-			connection.close()
+			connection.Close()
 			return err
 		}
 		if err := this.serveConnection(connection, handler, codec); err != nil {
@@ -139,6 +139,6 @@ func (this *TCPClient) Close() {
 	if this.connection == nil {
 		return
 	}
-	this.connection.close()
+	this.connection.Close()
 	this.connection = nil
 }

@@ -88,7 +88,7 @@ func (this *TCPServer) ListenAndServe(handler TCPHandler, codec Codec) error {
 
 		connection := newTCPConnection(conn)
 		if err := this.newConnection(connection); err != nil {
-			connection.close() // close
+			connection.Close() // close
 			return err
 		}
 		go this.serveConnection(connection, handler, codec)
@@ -151,7 +151,7 @@ func (this *TCPServer) Close() {
 	this.listener.Close()
 	this.listener = nil
 	for connection := range this.connections {
-		connection.close()
+		connection.Close()
 		delete(this.connections, connection)
 	}
 }

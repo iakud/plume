@@ -41,7 +41,7 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
-			this.conn.Close()
+			this.Close()
 		}
 	}()
 
@@ -56,7 +56,7 @@ func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
 	for {
 		b, err := codec.Read(r)
 		if err != nil {
-			this.conn.Close()
+			this.Close()
 			return
 		}
 		handler.Receive(this, b)
@@ -80,7 +80,7 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
 			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
-			this.conn.Close()
+			this.Close()
 		}
 	}()
 
@@ -100,13 +100,13 @@ func (this *TCPConnection) backgroundWrite(codec Codec) {
 		for _, b := range bufs {
 			if err := codec.Write(w, b); err != nil {
 				this.closeWrite()
-				this.conn.Close()
+				this.Close()
 				return
 			}
 		}
 		if err := w.Flush(); err != nil {
 			this.closeWrite()
-			this.conn.Close()
+			this.Close()
 			return
 		}
 	}
@@ -168,24 +168,16 @@ func (this *TCPConnection) Send(b []byte) error {
 	return nil
 }
 
-func (this *TCPConnection) close() {
+func (this *TCPConnection) Close() {
 	this.conn.Close()
 }
 
 func (this *TCPConnection) Shutdown() {
+	const delay = time.Second * 3
+	this.ShutdownIn(delay)
+}
+
+func (this *TCPConnection) ShutdownIn(d time.Duration) {
 	this.stopBackgroundWrite() // stop write
-}
-
-func (this *TCPConnection) ForceClose() {
-	this.conn.SetLinger(0)
-	this.conn.Close()
-}
-
-func (this *TCPConnection) AfterForceClose(d time.Duration) {
-	time.AfterFunc(d, this.ForceClose)
-}
-
-func (this *TCPConnection) ShutdownAndAfterForceClose(d time.Duration) {
-	this.Shutdown()
-	this.AfterForceClose(d)
+	time.AfterFunc(d, this.Close)
 }
