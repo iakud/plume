@@ -67,7 +67,6 @@ func (this *TCPConnection) startBackgroundWrite(codec Codec) {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 	if this.closed {
-		this.mutex.Unlock()
 		return
 	}
 	go this.backgroundWrite(codec)
