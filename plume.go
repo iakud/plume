@@ -6,6 +6,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"sync"
 	"sync/atomic"
 
 	"github.com/iakud/plume/log"
@@ -14,13 +15,13 @@ import (
 var running int32
 var ctx, cancel = context.WithCancel(context.Background())
 
-type App interface {
+type Service interface {
 	Init()
 	Run(context.Context)
 	Destory()
 }
 
-func Run(app App) {
+func Run(services ...Service) {
 	if !atomic.CompareAndSwapInt32(&running, 0, 1) {
 		log.Info("Plume has running")
 		return
@@ -34,10 +35,35 @@ func Run(app App) {
 		Close()
 	}()
 	go http.ListenAndServe(":8080", nil)
-	app.Init()
-	app.Run(ctx)
+	/*
+		s.Init()
+		s.Run(ctx)
+		log.Infof("Plume closing down")
+		s.Destory()
+	*/
+	var stops []func()
+	for _, s := range services {
+		ctx, cancel := context.WithCancel(context.Background())
+		var wg sync.WaitGroup
+		s.Init()
+		go func() {
+			s.Run(ctx)
+			wg.Done()
+		}()
+		stop := func() {
+			cancel()
+			wg.Wait()
+			s.Destory()
+		}
+		stops = append(stops, stop)
+	}
+	<-ctx.Done()
 	log.Infof("Plume closing down")
-	app.Destory()
+	// destory
+	for i := len(stops) - 1; i >= 0; i-- {
+		stops[i]()
+	}
+
 	atomic.StoreInt32(&running, 0)
 }
 
