@@ -6,7 +6,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"sync"
 	"sync/atomic"
 
 	"github.com/iakud/plume/log"
@@ -17,11 +16,10 @@ var ctx, cancel = context.WithCancel(context.Background())
 
 type Service interface {
 	Init()
-	Run(context.Context)
-	Destory()
+	Shutdown()
 }
 
-func Run(services ...Service) {
+func Run(s Service) {
 	if !atomic.CompareAndSwapInt32(&running, 0, 1) {
 		log.Info("Plume has running")
 		return
@@ -29,44 +27,20 @@ func Run(services ...Service) {
 	log.Infof("Plume starting up")
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
-	go func() {
-		sig := <-c
-		_ = sig
-		Close()
-	}()
-	go http.ListenAndServe(":8080", nil)
-	/*
-		s.Init()
-		s.Run(ctx)
-		log.Infof("Plume closing down")
-		s.Destory()
-	*/
-	var stops []func()
-	for _, s := range services {
-		ctx, cancel := context.WithCancel(context.Background())
-		var wg sync.WaitGroup
-		s.Init()
-		go func() {
-			s.Run(ctx)
-			wg.Done()
-		}()
-		stop := func() {
-			cancel()
-			wg.Wait()
-			s.Destory()
-		}
-		stops = append(stops, stop)
+	go http.ListenAndServe(":80", nil)
+	
+	s.Init()
+	select {
+	case sig := <-c:
+		log.Info("Plume got signal", sig)
+	case <-ctx.Done():
 	}
-	<-ctx.Done()
 	log.Infof("Plume closing down")
-	// destory
-	for i := len(stops) - 1; i >= 0; i-- {
-		stops[i]()
-	}
+	s.Shutdown()
 
 	atomic.StoreInt32(&running, 0)
 }
 
-func Close() {
+func Shutdown() {
 	cancel()
 }
