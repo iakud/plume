@@ -1,13 +1,17 @@
 package plume
 
-type Options struct {
+import (
+	"github.com/iakud/plume/service"
+)
 
+type options struct {
+	services []service.Service
 }
 
-type Option func(*Options)
+type Option func(*options)
 
-func WithServices() Option {
-	return func(opt *Options) {
-
+func WithServices(services ...service.Service) Option {
+	return func(opt *options) {
+		opt.services = services
 	}
 }

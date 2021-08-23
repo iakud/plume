@@ -9,35 +9,38 @@ import (
 	"sync/atomic"
 
 	"github.com/iakud/plume/log"
+	"github.com/iakud/plume/service"
 )
 
 var running int32
 var ctx, cancel = context.WithCancel(context.Background())
 
-type Service interface {
-	Init()
-	Shutdown()
-}
-
-func Run(s Service) {
+func Run(o ...Option) {
 	if !atomic.CompareAndSwapInt32(&running, 0, 1) {
 		log.Info("Plume has running")
 		return
 	}
+
+	// options
+	opts := options{}
+	for _, option := range o {
+		option(&opts)
+	}
+
 	log.Infof("Plume starting up")
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
 	go http.ListenAndServe(":80", nil)
 	
-	s.Init()
+	service.Init(opts.services)
 	select {
 	case sig := <-c:
 		log.Info("Plume got signal", sig)
 	case <-ctx.Done():
 	}
 	log.Infof("Plume closing down")
-	s.Shutdown()
-
+	
+	service.Shutdown(opts.services)
 	atomic.StoreInt32(&running, 0)
 }
 
