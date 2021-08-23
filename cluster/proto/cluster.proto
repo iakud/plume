@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package clusterpb;
+option go_package = "/clusterpb";
+
+message TestRequest {
+	int32 cmd = 1;
+	bytes data = 2;
+}
+
+message TestReply {
+}
+
+service Master {
+	rpc Test (TestRequest) returns (TestReply) {}
+}
