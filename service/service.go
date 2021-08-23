@@ -12,7 +12,7 @@ func Init(services []Service) {
 }
 
 func Shutdown(services []Service) {
-	for i := len(services); i >= 0; i--  {
+	for i := len(services)-1; i >= 0; i--  {
 		services[i].Shutdown()
 	}
 }
