@@ -221,7 +221,7 @@ func (L *Stack) ExecuteString(codes string) {
 
 func (L *Stack) execute(nargs, nresults int) {
 	if C.tolua_docall(L, C.int(nargs), C.int(nresults)) != 0 && C.stack_isnil(L, -1) == 0 {
-		err := C.lua_tolstring(L, -1, nil)
+		err := L.ToString(-1)
 		C.stack_pop(L, 1)
 		panic(err)
 	}
