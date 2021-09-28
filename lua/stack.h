@@ -6,7 +6,7 @@
 #include <tolua/tolua_function.h>
 #include <string.h>
 
-void stack_addPackagePath(lua_State *L, const char* path) {
+void AddPackagePath(lua_State *L, const char* path) {
 	lua_getglobal(L, LUA_LOADLIBNAME);
 	lua_getfield(L, -1, "path");
 	lua_pushfstring(L, "%s;%s/?.lua", lua_tostring(L, -1), path);
@@ -14,41 +14,31 @@ void stack_addPackagePath(lua_State *L, const char* path) {
 	lua_pop(L, 2);
 }
 
-void unload(lua_State *L, const char* modname) {
-	if (modname == NULL || strlen(modname) == 0) {
-		return;
-	}
-
+void Unload(lua_State *L, const char* modname) {
 	lua_getglobal(L, LUA_LOADLIBNAME);
 	lua_getfield(L, -1, "loaded");
-	lua_pushstring(L, modname);
-	lua_gettable(L, -2);
+	lua_getfield(L, -1, modname);
 	if (!lua_isnil(L, -1)) {
-		lua_pushstring(L, modname);
 		lua_pushnil(L);
-		lua_settable(L, -4);
+		lua_setfield(L, -3, modname);
 	}
 	lua_pop(L, 3);
 }
 
-int stack_isnil(lua_State *L, int idx) {
-	return lua_isnil(L, idx);
-}
-
-lua_Integer stack_tointeger(lua_State *L, int idx) {
+lua_Integer Lua_tointeger(lua_State *L, int idx) {
 	return lua_tointeger(L, idx);
 }
 
-lua_Number stack_tonumber(lua_State *L, int idx) {
+lua_Number Lua_tonumber(lua_State *L, int idx) {
 	return lua_tonumber(L, idx)	;
 }
 
-void stack_insert(lua_State *L, int idx) {
+void Lua_insert(lua_State *L, int idx) {
 	lua_insert(L, idx);
 }
 
-void stack_pop(lua_State *L, int n) {
-	lua_pop(L, n);
+void Lua_pop(lua_State *L, int idx) {
+	lua_pop(L, idx);
 }
 
 #endif // _STACK_H_

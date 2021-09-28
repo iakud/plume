@@ -7,9 +7,6 @@ import (
 
 /*
 #cgo LDFLAGS: -llua -ltolua
-#include <tolua/tolua.h>
-#include <tolua/tolua_call.h>
-#include <tolua/tolua_function.h>
 #include <stack.h>
 #include <stdlib.h>
  */
@@ -31,7 +28,7 @@ func (L *Stack) Close() {
 func (L *Stack) AddPackagePath(path string) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
-	C.stack_addPackagePath(L, cPath)
+	C.AddPackagePath(L, cPath)
 }
 
 func (L *Stack) Load(modname string) {
@@ -43,9 +40,12 @@ func (L *Stack) Load(modname string) {
 }
 
 func (L *Stack) Unload(modname string) {
+	if len(modname) == 0 {
+		return
+	}
 	cModname := C.CString(modname)
 	defer C.free(unsafe.Pointer(cModname))
-	C.unload(L, cModname)
+	C.Unload(L, cModname)
 }
 
 func (L *Stack) Reload(modname string) {
@@ -122,23 +122,23 @@ func (L *Stack) ToBool(index int) bool {
 }
 
 func (L *Stack) ToInt(index int) int {
-	return int(C.stack_tointeger(L, C.int(index)))
+	return int(C.Lua_tointeger(L, C.int(index)))
 }
 
 func (L *Stack) ToInt32(index int) int32 {
-	return int32(C.stack_tointeger(L, C.int(index)))
+	return int32(C.Lua_tointeger(L, C.int(index)))
 }
 
 func (L *Stack) ToInt64(index int) int64 {
-	return int64(C.stack_tonumber(L, C.int(index)))
+	return int64(C.Lua_tonumber(L, C.int(index)))
 }
 
 func (L *Stack) ToFloat32(index int) float32 {
-	return float32(C.stack_tonumber(L, C.int(index)))
+	return float32(C.Lua_tonumber(L, C.int(index)))
 }
 
 func (L *Stack) ToFloat64(index int) float64 {
-	return float64(C.stack_tonumber(L, C.int(index)))
+	return float64(C.Lua_tonumber(L, C.int(index)))
 }
 
 func (L *Stack) ToString(index int) string {
@@ -191,6 +191,10 @@ func (L *Stack) FormatIndex(index int) int {
 	}
 }
 
+func (L *Stack) Pop(n int) {
+	C.Lua_pop(L, C.int(n))
+}
+
 //
 // excute
 //
@@ -199,7 +203,7 @@ func (L *Stack) ExecuteGlobalFunction(funcname string, nargs, nresults int) {
 	defer C.free(unsafe.Pointer(cFuncname))
 	C.lua_getglobal(L, cFuncname)
 	if nargs > 0 {
-		C.stack_insert(L, C.int(-(nargs + 1)))
+		C.Lua_insert(L, C.int(-(nargs + 1)))
 	}
 	L.execute(nargs, nresults)
 }
@@ -207,7 +211,7 @@ func (L *Stack) ExecuteGlobalFunction(funcname string, nargs, nresults int) {
 func (L *Stack) ExecuteFunction(f *C.tolua_FunctionRef, nargs, nresults int) {
 	C.tolua_pushfunction_ref(L, f)
 	if nargs > 0 {
-		C.stack_insert(L, C.int(-(nargs + 1)))
+		C.Lua_insert(L, C.int(-(nargs + 1)))
 	}
 	L.execute(nargs, nresults)
 }
@@ -220,17 +224,13 @@ func (L *Stack) ExecuteString(codes string) {
 }
 
 func (L *Stack) execute(nargs, nresults int) {
-	if C.tolua_docall(L, C.int(nargs), C.int(nresults)) != 0 && C.stack_isnil(L, -1) == 0 {
+	if C.tolua_docall(L, C.int(nargs), C.int(nresults)) != 0 && C.lua_type(L, -1) != C.LUA_TNIL {
 		err := L.ToString(-1)
-		C.stack_pop(L, 1)
+		L.Pop(1)
 		panic(err)
 	}
 }
 
-//
-// module
-//
-/*
 func (L *Stack) Module(name string) {
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
@@ -243,29 +243,46 @@ func (L *Stack) BeginModule(name string) {
 	C.tolua_beginmodule(L, cName)
 }
 
-func (L *Stack) EndModule() {
-	C.tolua_endmodule((*C.lua_State)(L))
+func (L *Stack) EndModule(name string) {
+	C.tolua_endmodule(L)
 }
 
-func (L *Stack) Function(name string, f C.lua_CFunction) {
+type CFunction = C.lua_CFunction
+
+func (L *Stack) Function(name string, f CFunction) {
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
 	C.tolua_function(L, cName, f)
 }
 
-func (L *Stack) UserType(name string, col C.lua_CFunction) {
+func (L *Stack) UserType(name string, col CFunction) {
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
 	C.tolua_usertype(L, cName, col)
 }
 
 func (L *Stack) Class(lname, name, base string) {
-	c_lname := C.CString(lname)
-	defer C.free(unsafe.Pointer(c_lname))
-	c_name := C.CString(name)
-	defer C.free(unsafe.Pointer(c_name))
-	c_base := C.CString(base)
-	defer C.free(unsafe.Pointer(c_base))
-	C.tolua_class((*C.lua_State)(L), c_lname, c_name, c_base)
+	cLName := C.CString(lname)
+	defer C.free(unsafe.Pointer(cLName))
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
+	cBase := C.CString(base)
+	defer C.free(unsafe.Pointer(cBase))
+	C.tolua_class(L, cLName, cName, cBase)
 }
-*/
+
+func (L *Stack) BeginUserType(name string) {
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
+	C.tolua_beginusertype(L, cName)
+}
+
+func (L *Stack) EndUserType(name string) {
+	C.tolua_endusertype(L)
+}
+
+func (L *Stack) IsUserTable(index int, name string) bool {
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
+	return C.tolua_isusertable(L, C.int(index), cName) == 0
+}
