@@ -9,7 +9,7 @@ import (
 #cgo LDFLAGS: -llua -ltolua
 #include <stack.h>
 #include <stdlib.h>
- */
+*/
 import "C"
 
 type Stack = C.lua_State
@@ -195,6 +195,12 @@ func (L *Stack) Pop(n int) {
 	C.Lua_pop(L, C.int(n))
 }
 
+func (L *Stack) Error(format string, a ...interface{}) int {
+	cFmt := C.CString(fmt.Sprintf(format, a...))
+	defer C.free(unsafe.Pointer(cFmt))
+	return int(C.LuaL_error(L, cFmt))
+}
+
 //
 // excute
 //
@@ -246,7 +252,7 @@ func (L *Stack) BeginModule(name string) {
 	C.tolua_beginmodule(L, cName)
 }
 
-func (L *Stack) EndModule(name string) {
+func (L *Stack) EndModule() {
 	C.tolua_endmodule(L)
 }
 

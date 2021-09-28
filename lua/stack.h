@@ -41,4 +41,8 @@ void Lua_pop(lua_State *L, int idx) {
 	lua_pop(L, idx);
 }
 
+int LuaL_error(lua_State *L, const char *s) {
+	return luaL_error(L, s);
+}
+
 #endif // _STACK_H_
