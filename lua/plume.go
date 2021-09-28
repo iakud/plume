@@ -10,10 +10,10 @@ int lua_go_time_now(lua_State*);
 import "C"
 
 import (
+	"github.com/iakud/plume/log"
+
 	"runtime"
 	"time"
-
-	"github.com/iakud/plume/log"
 )
 
 func FuncName() string {
