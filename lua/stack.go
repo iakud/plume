@@ -231,6 +231,9 @@ func (L *Stack) execute(nargs, nresults int) {
 	}
 }
 
+//
+// tolua
+//
 func (L *Stack) Module(name string) {
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
