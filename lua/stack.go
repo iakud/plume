@@ -287,5 +287,5 @@ func (L *Stack) EndUserType(name string) {
 func (L *Stack) IsUserTable(index int, name string) bool {
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
-	return C.tolua_isusertable(L, C.int(index), cName) == 0
+	return C.tolua_isusertable(L, C.int(index), cName) != 0
 }
