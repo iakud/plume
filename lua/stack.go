@@ -18,6 +18,7 @@ func NewStack() *Stack {
 	L := C.luaL_newstate()
 	C.luaL_openlibs(L)
 	C.tolua_open(L)
+	OpenPlume(L)
 	return L
 }
 
