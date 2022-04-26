@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -18,15 +19,20 @@ func main() {
 	})
 	if err != nil {
 		// handle error!
+		log.Fatalln(err)
 	}
 	defer cli.Close()
 
-	discovery.New(cli, "myservice", func(addresses []discovery.Address) {
+	serviced, err := discovery.New(cli, "/myservice", func(addresses []discovery.Address) {
 		services = addresses
 	})
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer serviced.Close()
 
 	http.HandleFunc("/", Services)
-	http.ListenAndServe("localhost", nil)
+	http.ListenAndServe("localhost:80", nil)
 }
 
 func Services(w http.ResponseWriter, r *http.Request) {
