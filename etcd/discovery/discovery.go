@@ -28,7 +28,7 @@ func New(c *clientv3.Client, service string, update func(addresses []Address)) (
 		cancel: cancel,
 	}
 
-	em, err := endpoints.NewManager(c, "etcd:///"+service)
+	em, err := endpoints.NewManager(c, service)
 	if err != nil {
 		return nil, fmt.Errorf("discover: failed to new endpoint manager: %s", err)
 	}
