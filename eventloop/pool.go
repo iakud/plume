@@ -40,6 +40,14 @@ func (this *Pool) GetNextLoop() *EventLoop {
 	return this.loops[index]
 }
 
+func (this *Pool) GetLoopForHash(hashCode int) *EventLoop {
+	if len(this.loops) == 0 {
+		return nil
+	}
+	index := hashCode % len(this.loops)
+	return this.loops[index]
+}
+
 func (this *Pool) GetAllLoops() []*EventLoop {
 	if len(this.loops) == 0 {
 		return nil
