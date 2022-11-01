@@ -3,6 +3,7 @@ module github.com/iakud/plume
 go 1.18
 
 require (
+	github.com/agiledragon/gomonkey/v2 v2.9.0
 	github.com/gocarina/gocsv v0.0.0-20220422102445-f48ffd81e276
 	go.etcd.io/etcd/client/v3 v3.5.4
 	google.golang.org/grpc v1.46.0
