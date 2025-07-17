@@ -10,41 +10,22 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const (
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 8192
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Time to wait before force close on connection.
-	closeGracePeriod = 10 * time.Second
-)
-
 var (
 	ErrWSConnectionPendingSendFull = errors.New("network: WebSocket connection pending send full")
 )
 
-type WSMessageType int
-
 const (
-	TextMessage   WSMessageType = websocket.TextMessage
-	BinaryMessage               = websocket.BinaryMessage
+	TextMessage   = websocket.TextMessage
+	BinaryMessage = websocket.BinaryMessage
 )
 
 type WSMessage struct {
-	MessageType int
-	Data        []byte
+	Type int
+	Data []byte
 }
 
 type WSConn struct {
-	wsconn *websocket.Conn
+	conn *websocket.Conn
 
 	bufs        []WSMessage
 	pendingSend int
@@ -54,13 +35,13 @@ type WSConn struct {
 }
 
 func newWSConn(wsconn *websocket.Conn) *WSConn {
-	conn := &WSConn{wsconn: wsconn}
+	conn := &WSConn{conn: wsconn}
 	conn.cond = sync.NewCond(&conn.mutex)
 	return conn
 }
 
 func (c *WSConn) serve(handler WSHandler) {
-	defer c.wsconn.Close()
+	defer c.conn.Close()
 
 	// start write
 	c.startBackgroundWrite()
@@ -70,15 +51,15 @@ func (c *WSConn) serve(handler WSHandler) {
 	handler.Connect(c, true)
 	defer handler.Connect(c, false)
 	for {
-		messageType, data, err := c.wsconn.ReadMessage()
+		messageType, data, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
-			c.wsconn.Close()
+			c.conn.Close()
 			break
 		}
-		handler.Receive(c, WSMessageType(messageType), data)
+		handler.Receive(c, messageType, data)
 	}
 }
 
@@ -104,15 +85,15 @@ func (c *WSConn) backgroundWrite() {
 		c.mutex.Unlock()
 
 		for _, message := range bufs {
-			if err := c.wsconn.WriteMessage(message.MessageType, message.Data); err != nil {
+			if err := c.conn.WriteMessage(message.Type, message.Data); err != nil {
 				c.closeWrite()
-				c.wsconn.Close()
+				c.conn.Close()
 				return
 			}
 		}
 	}
 	// not writing now
-	c.wsconn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	c.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 }
 
 func (c *WSConn) stopBackgroundWrite() {
@@ -135,11 +116,11 @@ func (c *WSConn) closeWrite() {
 }
 
 func (c *WSConn) LocalAddr() net.Addr {
-	return c.wsconn.LocalAddr()
+	return c.conn.LocalAddr()
 }
 
 func (c *WSConn) RemoteAddr() net.Addr {
-	return c.wsconn.RemoteAddr()
+	return c.conn.RemoteAddr()
 }
 
 func (c *WSConn) SetPendingSend(pendingSend int) {
@@ -148,7 +129,7 @@ func (c *WSConn) SetPendingSend(pendingSend int) {
 	c.pendingSend = pendingSend
 }
 
-func (c *WSConn) Send(messageType WSMessageType, data []byte) error {
+func (c *WSConn) Send(messageType int, data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
@@ -160,7 +141,7 @@ func (c *WSConn) Send(messageType WSMessageType, data []byte) error {
 	if c.pendingSend > 0 && len(c.bufs) >= c.pendingSend {
 		return ErrWSConnectionPendingSendFull
 	}
-	c.bufs = append(c.bufs, WSMessage{int(messageType), data})
+	c.bufs = append(c.bufs, WSMessage{messageType, data})
 	c.cond.Signal()
 	return nil
 }
@@ -170,7 +151,7 @@ func (c *WSConn) Shutdown() {
 }
 
 func (c *WSConn) Close() {
-	c.wsconn.Close()
+	c.conn.Close()
 }
 func (c *WSConn) CloseWithTimeout(timeout time.Duration) {
 	time.AfterFunc(timeout, c.Close)
