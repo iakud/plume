@@ -1,4 +1,4 @@
-package network
+package network_test
 
 import (
 	"bytes"
@@ -6,12 +6,14 @@ import (
 	"io"
 	"log"
 	"testing"
+
+	"github.com/iakud/plume/network"
 )
 
 type codecTest struct {
 }
 
-func (this *codecTest) Read(r io.Reader) ([]byte, error) {
+func (c *codecTest) Read(r io.Reader) ([]byte, error) {
 	h := make([]byte, 2)
 	if _, err := io.ReadFull(r, h); err != nil {
 		return nil, err
@@ -24,7 +26,7 @@ func (this *codecTest) Read(r io.Reader) ([]byte, error) {
 	return b, nil
 }
 
-func (this *codecTest) Write(w io.Writer, b []byte) error {
+func (c *codecTest) Write(w io.Writer, b []byte) error {
 	h := make([]byte, 2)
 	binary.BigEndian.PutUint16(h, uint16(len(b)))
 	if _, err := w.Write(h); err != nil {
@@ -38,7 +40,7 @@ func (this *codecTest) Write(w io.Writer, b []byte) error {
 
 func TestCodec(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
-	var c codecTest
+	var c network.Codec = &codecTest{}
 	message := "hello"
 	if err := c.Write(buffer, []byte(message)); err != nil {
 		log.Fatalln(err)

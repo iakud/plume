@@ -29,8 +29,8 @@ func NewTCPClient(addr string) *TCPClient {
 	return client
 }
 
-func (this *TCPClient) EnableRetry()  { this.retry = true }
-func (this *TCPClient) DisableRetry() { this.retry = false }
+func (c *TCPClient) EnableRetry()  { c.retry = true }
+func (c *TCPClient) DisableRetry() { c.retry = false }
 
 func dialTCP(addr string) (*net.TCPConn, error) {
 	raddr, err := net.ResolveTCPAddr("tcp", addr)
@@ -40,8 +40,8 @@ func dialTCP(addr string) (*net.TCPConn, error) {
 	return net.DialTCP("tcp", nil, raddr)
 }
 
-func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
-	if this.isClosed() {
+func (c *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
+	if c.isClosed() {
 		return ErrClientClosed
 	}
 
@@ -54,12 +54,12 @@ func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
 
 	var tempDelay time.Duration // how long to sleep on connect failure
 	for {
-		conn, err := dialTCP(this.addr)
+		conn, err := dialTCP(c.addr)
 		if err != nil {
-			if this.isClosed() {
+			if c.isClosed() {
 				return ErrClientClosed
 			}
-			if !this.retry {
+			if !c.retry {
 				return err
 			}
 
@@ -78,67 +78,67 @@ func (this *TCPClient) DialAndServe(handler TCPHandler, codec Codec) error {
 		tempDelay = 0
 
 		connection := newTCPConnection(conn)
-		if err := this.newConnection(connection); err != nil {
+		if err := c.newConnection(connection); err != nil {
 			connection.Close()
 			return err
 		}
-		if err := this.serveConnection(connection, handler, codec); err != nil {
+		if err := c.serveConnection(connection, handler, codec); err != nil {
 			return err
 		}
 	}
 }
 
-func (this *TCPClient) isClosed() bool {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	return this.closed
+func (c *TCPClient) isClosed() bool {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.closed
 }
 
-func (this *TCPClient) newConnection(connection *TCPConnection) error {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+func (c *TCPClient) newConnection(connection *TCPConnection) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
-	if this.closed {
+	if c.closed {
 		return ErrClientClosed
 	}
-	this.connection = connection
+	c.connection = connection
 	return nil
 }
 
-func (this *TCPClient) serveConnection(connection *TCPConnection, handler TCPHandler, codec Codec) error {
+func (c *TCPClient) serveConnection(connection *TCPConnection, handler TCPHandler, codec Codec) error {
 	connection.serve(handler, codec)
 	// remove connection
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
-	if this.closed {
+	if c.closed {
 		return ErrClientClosed
 	}
-	this.connection = nil
+	c.connection = nil
 	return nil
 }
 
-func (this *TCPClient) GetConnection() *TCPConnection {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+func (c *TCPClient) GetConnection() *TCPConnection {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
-	if this.closed {
+	if c.closed {
 		return nil
 	}
-	return this.connection
+	return c.connection
 }
 
-func (this *TCPClient) Close() {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+func (c *TCPClient) Close() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
-	if this.closed {
+	if c.closed {
 		return
 	}
-	this.closed = true
-	if this.connection == nil {
+	c.closed = true
+	if c.connection == nil {
 		return
 	}
-	this.connection.Close()
-	this.connection = nil
+	c.connection.Close()
+	c.connection = nil
 }

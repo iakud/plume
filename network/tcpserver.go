@@ -39,18 +39,18 @@ func listenTCP(addr string) (*net.TCPListener, error) {
 	return net.ListenTCP("tcp", laddr)
 }
 
-func (this *TCPServer) ListenAndServe(handler TCPHandler, codec Codec) error {
-	if this.isClosed() {
+func (s *TCPServer) ListenAndServe(handler TCPHandler, codec Codec) error {
+	if s.isClosed() {
 		return ErrServerClosed
 	}
-	ln, err := listenTCP(this.addr)
+	ln, err := listenTCP(s.addr)
 	if err != nil {
 		return err
 	}
 
 	defer ln.Close()
 
-	if err := this.newListener(ln); err != nil {
+	if err := s.newListener(ln); err != nil {
 		return err
 	}
 
@@ -65,7 +65,7 @@ func (this *TCPServer) ListenAndServe(handler TCPHandler, codec Codec) error {
 	for {
 		conn, err := ln.AcceptTCP()
 		if err != nil {
-			if this.isClosed() {
+			if s.isClosed() {
 				return ErrServerClosed
 			}
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
@@ -87,71 +87,71 @@ func (this *TCPServer) ListenAndServe(handler TCPHandler, codec Codec) error {
 		tempDelay = 0
 
 		connection := newTCPConnection(conn)
-		if err := this.newConnection(connection); err != nil {
+		if err := s.newConnection(connection); err != nil {
 			connection.Close() // close
 			return err
 		}
-		go this.serveConnection(connection, handler, codec)
+		go s.serveConnection(connection, handler, codec)
 	}
 }
 
-func (this *TCPServer) isClosed() bool {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+func (s *TCPServer) isClosed() bool {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	return this.closed
+	return s.closed
 }
 
-func (this *TCPServer) newListener(ln *net.TCPListener) error {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+func (s *TCPServer) newListener(ln *net.TCPListener) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	if this.closed {
+	if s.closed {
 		return ErrServerClosed
 	}
-	this.listener = ln
-	this.connections = make(map[*TCPConnection]struct{})
+	s.listener = ln
+	s.connections = make(map[*TCPConnection]struct{})
 	return nil
 }
 
-func (this *TCPServer) newConnection(connection *TCPConnection) error {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+func (s *TCPServer) newConnection(connection *TCPConnection) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	if this.closed {
+	if s.closed {
 		return ErrServerClosed
 	}
-	this.connections[connection] = struct{}{}
+	s.connections[connection] = struct{}{}
 	return nil
 }
 
-func (this *TCPServer) serveConnection(connection *TCPConnection, handler TCPHandler, codec Codec) {
+func (s *TCPServer) serveConnection(connection *TCPConnection, handler TCPHandler, codec Codec) {
 	connection.serve(handler, codec)
 	// remove connection
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	if this.closed {
+	if s.closed {
 		return
 	}
-	delete(this.connections, connection)
+	delete(s.connections, connection)
 }
 
-func (this *TCPServer) Close() {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+func (s *TCPServer) Close() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	if this.closed {
+	if s.closed {
 		return
 	}
-	this.closed = true
-	if this.listener == nil {
+	s.closed = true
+	if s.listener == nil {
 		return
 	}
-	this.listener.Close()
-	this.listener = nil
-	for connection := range this.connections {
+	s.listener.Close()
+	s.listener = nil
+	for connection := range s.connections {
 		connection.Close()
-		delete(this.connections, connection)
+		delete(s.connections, connection)
 	}
 }

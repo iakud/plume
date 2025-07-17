@@ -1,10 +1,12 @@
-package network
+package network_test
 
 import (
-	"log"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/iakud/plume/network"
 )
 
 const (
@@ -15,22 +17,22 @@ const (
 
 // Pingpong Server
 type pingpongServer struct {
-	server *TCPServer
+	server *network.TCPServer
 }
 
 func newPingpongServer(addr string) *pingpongServer {
 	srv := &pingpongServer{
-		server: NewTCPServer(addr),
+		server: network.NewTCPServer(addr),
 	}
 	return srv
 }
 
 func (srv *pingpongServer) ListenAndServe() {
 	if err := srv.server.ListenAndServe(srv, nil); err != nil {
-		if err == ErrServerClosed {
+		if err == network.ErrServerClosed {
 			return
 		}
-		log.Println(err)
+		slog.Info(err.Error())
 	}
 }
 
@@ -38,19 +40,19 @@ func (srv *pingpongServer) Close() {
 	srv.server.Close()
 }
 
-func (srv *pingpongServer) Connect(connection *TCPConnection, connected bool) {
+func (srv *pingpongServer) Connect(connection *network.TCPConnection, connected bool) {
 	if connected {
 		connection.SetNoDelay(true)
 	}
 }
 
-func (srv *pingpongServer) Receive(connection *TCPConnection, b []byte) {
+func (srv *pingpongServer) Receive(connection *network.TCPConnection, b []byte) {
 	connection.Send(b)
 }
 
 // Pingpong Client
 type pingpongClient struct {
-	clients    []*TCPClient
+	clients    []*network.TCPClient
 	message    []byte
 	nConnected int32
 
@@ -69,9 +71,9 @@ func newPingpongClient(addr string) *pingpongClient {
 		message: message,
 		done:    make(chan struct{}),
 	}
-	clients := make([]*TCPClient, kClientCount)
+	clients := make([]*network.TCPClient, kClientCount)
 	for i := 0; i < kClientCount; i++ {
-		client := NewTCPClient(addr)
+		client := network.NewTCPClient(addr)
 		go c.serveClient(client)
 		clients[i] = client
 	}
@@ -80,13 +82,13 @@ func newPingpongClient(addr string) *pingpongClient {
 	return c
 }
 
-func (c *pingpongClient) serveClient(client *TCPClient) {
+func (c *pingpongClient) serveClient(client *network.TCPClient) {
 	client.EnableRetry() // 启用retry
 	if err := client.DialAndServe(c, nil); err != nil {
-		if err == ErrClientClosed {
+		if err == network.ErrClientClosed {
 			return
 		}
-		log.Println(err)
+		slog.Error(err.Error())
 	}
 }
 
@@ -96,30 +98,30 @@ func (c *pingpongClient) handleTimeout() {
 	}
 }
 
-func (c *pingpongClient) Connect(connection *TCPConnection, connected bool) {
+func (c *pingpongClient) Connect(connection *network.TCPConnection, connected bool) {
 	if connected {
 		connection.SetNoDelay(true)
 		connection.Send(c.message)
 		if atomic.AddInt32(&c.nConnected, 1) != kClientCount {
 			return
 		}
-		log.Println("all connected")
+		slog.Info("all connected")
 	} else {
 		if atomic.AddInt32(&c.nConnected, -1) != 0 {
 			return
 		}
 		bytesRead := atomic.LoadInt64(&c.bytesRead)
 		messagesRead := atomic.LoadInt64(&c.messagesRead)
-		log.Println(bytesRead, "total bytes read")
-		log.Println(messagesRead, "total messages read")
-		log.Println(bytesRead/messagesRead, "average message size")
+		slog.Info("", "total bytes read", bytesRead)
+		slog.Info("", "total messages read", messagesRead)
+		slog.Info("", "average message size", bytesRead/messagesRead)
 		timeout := int64(kTimeout / time.Second)
-		log.Println(bytesRead/(timeout*1024*1024), "MiB/s throughput")
+		slog.Info("", "MiB/s throughput", bytesRead/(timeout*1024*1024))
 		close(c.done)
 	}
 }
 
-func (c *pingpongClient) Receive(connection *TCPConnection, b []byte) {
+func (c *pingpongClient) Receive(connection *network.TCPConnection, b []byte) {
 	connection.Send(b)
 	atomic.AddInt64(&c.messagesRead, 1)
 	atomic.AddInt64(&c.bytesRead, int64(len(b)))

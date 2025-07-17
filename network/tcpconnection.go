@@ -34,147 +34,147 @@ func newTCPConnection(conn *net.TCPConn) *TCPConnection {
 	return connection
 }
 
-func (this *TCPConnection) serve(handler TCPHandler, codec Codec) {
+func (c *TCPConnection) serve(handler TCPHandler, codec Codec) {
 	defer func() {
 		if err := recover(); err != nil {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
-			this.Close()
+			log.Printf("network: panic serving %v: %v\n%s", c.RemoteAddr(), err, buf)
+			c.Close()
 		}
 	}()
 
 	// start write
-	this.startBackgroundWrite(codec)
-	defer this.stopBackgroundWrite()
+	c.startBackgroundWrite(codec)
+	defer c.stopBackgroundWrite()
 	// conn event
-	handler.Connect(this, true)
-	defer handler.Connect(this, false)
+	handler.Connect(c, true)
+	defer handler.Connect(c, false)
 	// loop read
-	r := bufio.NewReader(this.conn)
+	r := bufio.NewReader(c.conn)
 	for {
 		b, err := codec.Read(r)
 		if err != nil {
-			this.Close()
+			c.Close()
 			return
 		}
-		handler.Receive(this, b)
+		handler.Receive(c, b)
 	}
 }
 
-func (this *TCPConnection) startBackgroundWrite(codec Codec) {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	if this.closed {
+func (c *TCPConnection) startBackgroundWrite(codec Codec) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if c.closed {
 		return
 	}
-	go this.backgroundWrite(codec)
+	go c.backgroundWrite(codec)
 }
 
-func (this *TCPConnection) backgroundWrite(codec Codec) {
+func (c *TCPConnection) backgroundWrite(codec Codec) {
 	defer func() {
 		if err := recover(); err != nil {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("network: panic serving %v: %v\n%s", this.RemoteAddr(), err, buf)
-			this.Close()
+			log.Printf("network: panic serving %v: %v\n%s", c.RemoteAddr(), err, buf)
+			c.Close()
 		}
 	}()
 
 	// loop write
-	w := bufio.NewWriter(this.conn)
+	w := bufio.NewWriter(c.conn)
 	for closed := false; !closed; {
 		var bufs [][]byte
 
-		this.mutex.Lock()
-		for !this.closed && len(this.bufs) == 0 {
-			this.cond.Wait()
+		c.mutex.Lock()
+		for !c.closed && len(c.bufs) == 0 {
+			c.cond.Wait()
 		}
-		bufs, this.bufs = this.bufs, bufs // swap
-		closed = this.closed
-		this.mutex.Unlock()
+		bufs, c.bufs = c.bufs, bufs // swap
+		closed = c.closed
+		c.mutex.Unlock()
 
 		for _, b := range bufs {
 			if err := codec.Write(w, b); err != nil {
-				this.closeWrite()
-				this.Close()
+				c.closeWrite()
+				c.Close()
 				return
 			}
 		}
 		if err := w.Flush(); err != nil {
-			this.closeWrite()
-			this.Close()
+			c.closeWrite()
+			c.Close()
 			return
 		}
 	}
 	// not writing now
-	this.conn.CloseWrite() // only SHUT_WR
+	c.conn.CloseWrite() // only SHUT_WR
 }
 
-func (this *TCPConnection) stopBackgroundWrite() {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	if this.closed {
+func (c *TCPConnection) stopBackgroundWrite() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if c.closed {
 		return
 	}
-	this.closed = true
-	this.cond.Signal()
+	c.closed = true
+	c.cond.Signal()
 }
 
-func (this *TCPConnection) closeWrite() {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	if this.closed {
+func (c *TCPConnection) closeWrite() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if c.closed {
 		return
 	}
-	this.closed = true
+	c.closed = true
 }
 
-func (this *TCPConnection) LocalAddr() net.Addr {
-	return this.conn.LocalAddr()
+func (c *TCPConnection) LocalAddr() net.Addr {
+	return c.conn.LocalAddr()
 }
 
-func (this *TCPConnection) RemoteAddr() net.Addr {
-	return this.conn.RemoteAddr()
+func (c *TCPConnection) RemoteAddr() net.Addr {
+	return c.conn.RemoteAddr()
 }
 
-func (this *TCPConnection) SetNoDelay(noDelay bool) error {
-	return this.conn.SetNoDelay(noDelay)
+func (c *TCPConnection) SetNoDelay(noDelay bool) error {
+	return c.conn.SetNoDelay(noDelay)
 }
 
-func (this *TCPConnection) SetPendingSend(pendingSend int) {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	this.pendingSend = pendingSend
+func (c *TCPConnection) SetPendingSend(pendingSend int) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.pendingSend = pendingSend
 }
 
-func (this *TCPConnection) Send(b []byte) error {
+func (c *TCPConnection) Send(b []byte) error {
 	if len(b) == 0 {
 		return nil
 	}
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	if this.closed {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if c.closed {
 		return nil
 	}
-	if this.pendingSend > 0 && len(this.bufs) >= this.pendingSend {
+	if c.pendingSend > 0 && len(c.bufs) >= c.pendingSend {
 		return ErrConnectionPendingSendFull
 	}
-	this.bufs = append(this.bufs, b)
-	this.cond.Signal()
+	c.bufs = append(c.bufs, b)
+	c.cond.Signal()
 	return nil
 }
 
-func (this *TCPConnection) Shutdown() {
-	this.stopBackgroundWrite() // stop write
+func (c *TCPConnection) Shutdown() {
+	c.stopBackgroundWrite() // stop write
 }
 
-func (this *TCPConnection) Close() {
-	this.conn.Close()
+func (c *TCPConnection) Close() {
+	c.conn.Close()
 }
 
-func (this *TCPConnection) CloseWithTimeout(timeout time.Duration) {
-	time.AfterFunc(timeout, this.Close)
+func (c *TCPConnection) CloseWithTimeout(timeout time.Duration) {
+	time.AfterFunc(timeout, c.Close)
 }

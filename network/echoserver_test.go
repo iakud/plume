@@ -1,17 +1,19 @@
-package network
+package network_test
 
 import (
 	"log"
 	"testing"
+
+	"github.com/iakud/plume/network"
 )
 
 type echoServer struct {
-	server *TCPServer
+	server *network.TCPServer
 }
 
 func newEchoServer(addr string) *echoServer {
 	srv := &echoServer{
-		server: NewTCPServer(addr),
+		server: network.NewTCPServer(addr),
 	}
 	return srv
 }
@@ -26,7 +28,7 @@ func (srv *echoServer) Close() {
 	srv.server.Close()
 }
 
-func (srv *echoServer) Connect(connection *TCPConnection, connected bool) {
+func (srv *echoServer) Connect(connection *network.TCPConnection, connected bool) {
 	if connected {
 		log.Printf("echo server: %v connected.\n", connection.RemoteAddr())
 	} else {
@@ -34,7 +36,7 @@ func (srv *echoServer) Connect(connection *TCPConnection, connected bool) {
 	}
 }
 
-func (srv *echoServer) Receive(connection *TCPConnection, b []byte) {
+func (srv *echoServer) Receive(connection *network.TCPConnection, b []byte) {
 	message := string(b)
 	log.Printf("echo server: %v receive %v\n", connection.RemoteAddr(), message)
 	log.Println("echo server: send", message)
@@ -43,12 +45,12 @@ func (srv *echoServer) Receive(connection *TCPConnection, b []byte) {
 }
 
 type echoClient struct {
-	client *TCPClient
+	client *network.TCPClient
 }
 
 func newEchoClient(addr string) *echoClient {
 	echoClient := &echoClient{
-		client: NewTCPClient(addr),
+		client: network.NewTCPClient(addr),
 	}
 	return echoClient
 }
@@ -60,7 +62,7 @@ func (c *echoClient) ConnectAndServe() {
 	}
 }
 
-func (c *echoClient) Connect(connection *TCPConnection, connected bool) {
+func (c *echoClient) Connect(connection *network.TCPConnection, connected bool) {
 	const message string = "hello"
 	if connected {
 		log.Printf("echo client: %v connected.\n", connection.RemoteAddr())
@@ -72,7 +74,7 @@ func (c *echoClient) Connect(connection *TCPConnection, connected bool) {
 	}
 }
 
-func (c *echoClient) Receive(connection *TCPConnection, b []byte) {
+func (c *echoClient) Receive(connection *network.TCPConnection, b []byte) {
 	log.Printf("echo client: %v receive %v\n", connection.RemoteAddr(), string(b))
 }
 

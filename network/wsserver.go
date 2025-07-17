@@ -31,7 +31,7 @@ func NewWSServer(handler WSHandler) *WSServer {
 	return server
 }
 
-func (s *WSServer) ServeWS(w http.ResponseWriter, r *http.Request) {
+func (s *WSServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)

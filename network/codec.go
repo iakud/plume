@@ -23,7 +23,7 @@ type defaultCodec struct {
 
 var DefaultCodec *defaultCodec = &defaultCodec{}
 
-func (this *defaultCodec) Read(r io.Reader) ([]byte, error) {
+func (*defaultCodec) Read(r io.Reader) ([]byte, error) {
 	rBuf := bufio.NewReader(r)
 	if _, err := rBuf.Peek(1); err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func (this *defaultCodec) Read(r io.Reader) ([]byte, error) {
 	return b, nil
 }
 
-func (this *defaultCodec) Write(w io.Writer, b []byte) error {
+func (*defaultCodec) Write(w io.Writer, b []byte) error {
 	if _, err := w.Write(b); err != nil {
 		return err
 	}
