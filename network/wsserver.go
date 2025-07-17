@@ -2,11 +2,10 @@ package network
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"sync"
 
-	"github.com/gorilla/websocket"
+	"golang.org/x/net/websocket"
 )
 
 var (
@@ -21,8 +20,6 @@ type WSServer struct {
 	closed      bool
 }
 
-var upgrader = websocket.Upgrader{}
-
 func NewWSServer(handler WSHandler) *WSServer {
 	server := &WSServer{
 		Handler:     handler,
@@ -31,13 +28,11 @@ func NewWSServer(handler WSHandler) *WSServer {
 	return server
 }
 
-func (s *WSServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+func WebsocketHandler(ws *WSServer) http.Handler {
+	return websocket.Handler(ws.ServeWS)
+}
 
+func (s *WSServer) ServeWS(conn *websocket.Conn) {
 	handler := s.Handler
 	if handler == nil {
 		handler = DefaultWSHandler

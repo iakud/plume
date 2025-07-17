@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"golang.org/x/net/websocket"
 )
 
 var (
@@ -51,7 +51,7 @@ func (c *WSClient) DialAndServe() error {
 
 	var tempDelay time.Duration // how long to sleep on connect failure
 	for {
-		conn, _, err := websocket.DefaultDialer.Dial(c.Url, nil)
+		conn, err := websocket.Dial(c.Url, "", "http://localhost/")
 		if err != nil {
 			if c.isClosed() {
 				return ErrWSClientClosed

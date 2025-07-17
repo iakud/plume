@@ -6,27 +6,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"golang.org/x/net/websocket"
 )
 
 var (
 	ErrWSConnectionPendingSendFull = errors.New("network: WebSocket connection pending send full")
 )
 
-const (
-	TextMessage   = websocket.TextMessage
-	BinaryMessage = websocket.BinaryMessage
-)
-
-type WSMessage struct {
-	Type int
-	Data []byte
-}
-
 type WSConnection struct {
 	conn *websocket.Conn
 
-	bufs        []WSMessage
+	bufs        [][]byte
 	pendingSend int
 	mutex       sync.Mutex
 	cond        *sync.Cond
@@ -50,17 +40,12 @@ func (c *WSConnection) serve(handler WSHandler) {
 	handler.Connect(c, true)
 	defer handler.Connect(c, false)
 	for {
-		messageType, data, err := c.conn.ReadMessage()
-		if err != nil {
-			/*
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("error: %v", err)
-				}
-			*/
+		var data []byte
+		if err := websocket.Message.Receive(c.conn, &data); err != nil {
 			c.conn.Close()
 			break
 		}
-		handler.Receive(c, messageType, data)
+		handler.Receive(c, data)
 	}
 }
 
@@ -75,7 +60,7 @@ func (c *WSConnection) startBackgroundWrite() {
 
 func (c *WSConnection) backgroundWrite() {
 	for closed := false; !closed; {
-		var bufs []WSMessage
+		var bufs [][]byte
 
 		c.mutex.Lock()
 		for !c.closed && len(c.bufs) == 0 {
@@ -86,7 +71,7 @@ func (c *WSConnection) backgroundWrite() {
 		c.mutex.Unlock()
 
 		for _, message := range bufs {
-			if err := c.conn.WriteMessage(message.Type, message.Data); err != nil {
+			if err := websocket.Message.Send(c.conn, message); err != nil {
 				c.closeWrite()
 				c.conn.Close()
 				return
@@ -94,7 +79,7 @@ func (c *WSConnection) backgroundWrite() {
 		}
 	}
 	// not writing now
-	c.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	c.conn.Close()
 }
 
 func (c *WSConnection) stopBackgroundWrite() {
@@ -130,7 +115,7 @@ func (c *WSConnection) SetPendingSend(pendingSend int) {
 	c.pendingSend = pendingSend
 }
 
-func (c *WSConnection) Send(messageType int, data []byte) error {
+func (c *WSConnection) Send(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
@@ -142,7 +127,7 @@ func (c *WSConnection) Send(messageType int, data []byte) error {
 	if c.pendingSend > 0 && len(c.bufs) >= c.pendingSend {
 		return ErrWSConnectionPendingSendFull
 	}
-	c.bufs = append(c.bufs, WSMessage{messageType, data})
+	c.bufs = append(c.bufs, data)
 	c.cond.Signal()
 	return nil
 }

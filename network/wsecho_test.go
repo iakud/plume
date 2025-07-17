@@ -24,11 +24,11 @@ func (srv *wsEchoServer) Connect(connection *network.WSConnection, connected boo
 	}
 }
 
-func (srv *wsEchoServer) Receive(connection *network.WSConnection, messageType int, data []byte) {
+func (srv *wsEchoServer) Receive(connection *network.WSConnection, data []byte) {
 	message := string(data)
 	log.Printf("echo server: %v receive %v\n", connection.RemoteAddr(), message)
 	log.Println("echo server: send", message)
-	connection.Send(messageType, data)
+	connection.Send(data)
 	connection.Shutdown()
 }
 
@@ -46,14 +46,14 @@ func (c *wsEchoClient) Connect(connection *network.WSConnection, connected bool)
 	if connected {
 		log.Printf("echo client: %v connected.\n", connection.RemoteAddr())
 		log.Println("echo client: send", message)
-		connection.Send(network.TextMessage, []byte(message))
+		connection.Send([]byte(message))
 	} else {
 		log.Printf("echo client: %v disconnected.\n", connection.RemoteAddr())
 		c.Client.Close()
 	}
 }
 
-func (c *wsEchoClient) Receive(connection *network.WSConnection, messageType int, data []byte) {
+func (c *wsEchoClient) Receive(connection *network.WSConnection, data []byte) {
 	log.Printf("echo client: %v receive %v\n", connection.RemoteAddr(), string(data))
 }
 
@@ -73,6 +73,7 @@ func TestWSEcho(t *testing.T) {
 		wsServer.Close()
 		httpServer.Close()
 	}()
-	http.Handle("/", wsServer)
+
+	http.Handle("/", network.WebsocketHandler(wsServer))
 	httpServer.ListenAndServe()
 }
