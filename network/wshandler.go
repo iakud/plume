@@ -1,18 +1,18 @@
 package network
 
 type WSHandler interface {
-	Connect(conn *WSConn, connected bool)
-	Receive(conn *WSConn, messageType int, data []byte)
+	Connect(conn *WSConnection, connected bool)
+	Receive(conn *WSConnection, messageType int, data []byte)
 }
 
 type defaultWSHandler struct {
 }
 
-func (*defaultWSHandler) Connect(*WSConn, bool) {
+func (*defaultWSHandler) Connect(*WSConnection, bool) {
 
 }
 
-func (*defaultWSHandler) Receive(*WSConn, int, []byte) {
+func (*defaultWSHandler) Receive(*WSConnection, int, []byte) {
 
 }
 

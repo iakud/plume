@@ -24,7 +24,7 @@ type WSMessage struct {
 	Data []byte
 }
 
-type WSConn struct {
+type WSConnection struct {
 	conn *websocket.Conn
 
 	bufs        []WSMessage
@@ -34,13 +34,13 @@ type WSConn struct {
 	closed      bool
 }
 
-func newWSConn(wsconn *websocket.Conn) *WSConn {
-	conn := &WSConn{conn: wsconn}
-	conn.cond = sync.NewCond(&conn.mutex)
-	return conn
+func newWSConnection(conn *websocket.Conn) *WSConnection {
+	connection := &WSConnection{conn: conn}
+	connection.cond = sync.NewCond(&connection.mutex)
+	return connection
 }
 
-func (c *WSConn) serve(handler WSHandler) {
+func (c *WSConnection) serve(handler WSHandler) {
 	defer c.conn.Close()
 
 	// start write
@@ -63,7 +63,7 @@ func (c *WSConn) serve(handler WSHandler) {
 	}
 }
 
-func (c *WSConn) startBackgroundWrite() {
+func (c *WSConnection) startBackgroundWrite() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if c.closed {
@@ -72,7 +72,7 @@ func (c *WSConn) startBackgroundWrite() {
 	go c.backgroundWrite()
 }
 
-func (c *WSConn) backgroundWrite() {
+func (c *WSConnection) backgroundWrite() {
 	for closed := false; !closed; {
 		var bufs []WSMessage
 
@@ -96,7 +96,7 @@ func (c *WSConn) backgroundWrite() {
 	c.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 }
 
-func (c *WSConn) stopBackgroundWrite() {
+func (c *WSConnection) stopBackgroundWrite() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if c.closed {
@@ -106,7 +106,7 @@ func (c *WSConn) stopBackgroundWrite() {
 	c.cond.Signal()
 }
 
-func (c *WSConn) closeWrite() {
+func (c *WSConnection) closeWrite() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if c.closed {
@@ -115,21 +115,21 @@ func (c *WSConn) closeWrite() {
 	c.closed = true
 }
 
-func (c *WSConn) LocalAddr() net.Addr {
+func (c *WSConnection) LocalAddr() net.Addr {
 	return c.conn.LocalAddr()
 }
 
-func (c *WSConn) RemoteAddr() net.Addr {
+func (c *WSConnection) RemoteAddr() net.Addr {
 	return c.conn.RemoteAddr()
 }
 
-func (c *WSConn) SetPendingSend(pendingSend int) {
+func (c *WSConnection) SetPendingSend(pendingSend int) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.pendingSend = pendingSend
 }
 
-func (c *WSConn) Send(messageType int, data []byte) error {
+func (c *WSConnection) Send(messageType int, data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
@@ -146,13 +146,13 @@ func (c *WSConn) Send(messageType int, data []byte) error {
 	return nil
 }
 
-func (c *WSConn) Shutdown() {
+func (c *WSConnection) Shutdown() {
 	c.stopBackgroundWrite()
 }
 
-func (c *WSConn) Close() {
+func (c *WSConnection) Close() {
 	c.conn.Close()
 }
-func (c *WSConn) CloseWithTimeout(timeout time.Duration) {
+func (c *WSConnection) CloseWithTimeout(timeout time.Duration) {
 	time.AfterFunc(timeout, c.Close)
 }

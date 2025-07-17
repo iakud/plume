@@ -1,7 +1,6 @@
 package network
 
 import (
-	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -15,88 +14,62 @@ var (
 )
 
 type WSServer struct {
-	addr string
-	handler WSHandler
+	Handler WSHandler
 
-	mutex  sync.Mutex
-	server *http.Server
-	conns  map[*WSConn]struct{}
-	closed bool
+	mutex       sync.Mutex
+	connections map[*WSConnection]struct{}
+	closed      bool
 }
 
 var upgrader = websocket.Upgrader{}
 
-func NewWSServer(addr string, handler WSHandler) *WSServer {
-	if handler == nil {
-		handler = DefaultWSHandler
-	}
+func NewWSServer(handler WSHandler) *WSServer {
 	server := &WSServer{
-		addr: addr,
-		handler: handler,
-		conns: make(map[*WSConn]struct{}),
+		Handler:     handler,
+		connections: make(map[*WSConnection]struct{}),
 	}
 	return server
 }
 
-func ListenAndServeWS(addr string, handler WSHandler) error {
-	server := NewWSServer(addr, handler)
-	return server.ListenAndServe()
-}
-
-func (s *WSServer) ListenAndServe() error {
-	if s.isClosed() {
-		return ErrServerClosed
-	}
-
-	s.server = &http.Server{Addr: s.addr, Handler: s}
-	return s.server.ListenAndServe()
-}
-
-func (s *WSServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	wsconn, err := upgrader.Upgrade(w, r, nil)
+func (s *WSServer) ServeWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	conn := newWSConn(wsconn)
-	if err := s.newConn(conn); err != nil {
-		conn.Close() // close
+	handler := s.Handler
+	if handler == nil {
+		handler = DefaultWSHandler
+	}
+
+	connection := newWSConnection(conn)
+	if err := s.newConnection(connection); err != nil {
+		connection.Close() // close
 		return
 	}
-	s.serveConn(conn, s.handler)
+	s.serveConnection(connection, handler)
 }
 
-func (s *WSServer) isClosed() bool {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	return s.closed
-}
-
-func (s *WSServer) newConn(conn *WSConn) error {
+func (s *WSServer) newConnection(connection *WSConnection) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if s.closed {
 		return ErrWSServerClosed
 	}
-	s.conns[conn] = struct{}{}
+	s.connections[connection] = struct{}{}
 	return nil
 }
 
-func (s *WSServer) serveConn(conn *WSConn, handler WSHandler) {
-	conn.serve(handler)
+func (s *WSServer) serveConnection(connection *WSConnection, handler WSHandler) {
+	connection.serve(handler)
 	// remove connection
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if s.closed {
 		return
 	}
-	delete(s.conns, conn)
-}
-
-func (s *WSServer) Shutdown(ctx context.Context) error {
-	return s.server.Shutdown(ctx)
+	delete(s.connections, connection)
 }
 
 func (s *WSServer) Close() {
@@ -107,12 +80,8 @@ func (s *WSServer) Close() {
 		return
 	}
 	s.closed = true
-	if s.server == nil {
-		return
-	}
-	s.server.Close()
-	for conn := range s.conns {
-		conn.Close()
-		delete(s.conns, conn)
+	for connection := range s.connections {
+		connection.Close()
+		delete(s.connections, connection)
 	}
 }
