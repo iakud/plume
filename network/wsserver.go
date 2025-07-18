@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 
@@ -14,6 +15,7 @@ var (
 
 type WSServer struct {
 	Handler WSHandler
+	server  websocket.Server
 
 	mutex       sync.Mutex
 	connections map[*WSConnection]struct{}
@@ -25,14 +27,23 @@ func NewWSServer(handler WSHandler) *WSServer {
 		Handler:     handler,
 		connections: make(map[*WSConnection]struct{}),
 	}
+	server.server = websocket.Server{Handler: server.serveWebSocket, Handshake: checkOrigin}
 	return server
 }
 
-func WebsocketHandler(ws *WSServer) http.Handler {
-	return websocket.Handler(ws.ServeWS)
+func checkOrigin(config *websocket.Config, req *http.Request) (err error) {
+	config.Origin, err = websocket.Origin(config, req)
+	if err == nil && config.Origin == nil {
+		return fmt.Errorf("null origin")
+	}
+	return err
 }
 
-func (s *WSServer) ServeWS(conn *websocket.Conn) {
+func (s *WSServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	s.server.ServeHTTP(w, req)
+}
+
+func (s *WSServer) serveWebSocket(conn *websocket.Conn) {
 	handler := s.Handler
 	if handler == nil {
 		handler = DefaultWSHandler

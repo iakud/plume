@@ -74,6 +74,6 @@ func TestWSEcho(t *testing.T) {
 		httpServer.Close()
 	}()
 
-	http.Handle("/", network.WebsocketHandler(wsServer))
+	http.Handle("/", wsServer)
 	httpServer.ListenAndServe()
 }
